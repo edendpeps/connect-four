@@ -112,5 +112,6 @@ public:
 			return WinningStatus::NONE;
 		}
 	}
+	//현재 게임 상황을 문자열로
 
 };
