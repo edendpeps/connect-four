@@ -12,12 +12,19 @@ struct Character {
 constexpr const int H = 3;
 constexpr const int W = 3;
 
+enum class WinningStatus {
+	WIN,
+	LOSE,
+	DRAW,
+	NONE
+};
+
 class ConnectFourState {
 private:
 	bool first_ = true;
 	int my_board_[H][W] = {};
 	int enemy_board_[H][W] = {};
-	WinningStatus winning_status_ = WinningStatus::None;
+	WinningStatus winning_status_ = WinningStatus::NONE;
 public:
 	// 게임 생성
 	ConnectFourState()
@@ -29,55 +36,40 @@ public:
 	{
 		return winning_status_ != WinningStatus::NONE;
 	}
-	//지정한 행동으로 진행하고 다음 플레이어 전환
-	void advance(const int action)
+	//승패정보 획득
+	WinningStatus getWinningStatus() const
 	{
-		auto& character = this->characters_[0];
-		character.x += dx[action];
-		character.y += dy[action];
-		auto& point = this->points_[character.y_][character.x_];
-		if (point > 0)
-		{
-			character.game_score_ += point;
-			point = 0;
-		}
-		this->turn_++;
-		std::swap(this->characters_[0], this->characters_[1]);
+		return this->winning_status_;
 	}
 	//플레이어가 가능한 행동 모두 획득
 	std::vector<int> legalActions() const
 	{
 		std::vector<int> actions;
-		const auto& character = this->characters_[0];
-		for (int action = 0; action < 4; action++)
+		for (int x = 0; x < W; x++)
 		{
-			int ty = character.y_ + dy[action];
-			int tx = character.x_ + dx[action];
-			if (ty >= -&& ty < h && tx >= 0 && tx < W)
+			for (int y = H - 1; y >= 0; y--)
 			{
-				actions.emplace_back(action);
+				if (my_board_[y][x] == 0 && enemy_board_[y][x] == 0)
+				{
+					actions.emplace_back(x);
+					break;
+				}
 			}
 		}
 		return actions;
 	}
-
-	//승패
-	WinningStatus getWinningStatus() const
+	void advance(const int action)
 	{
-		if (isDone())
+		std::pair<int, int> coordinate;
+		for (int y = 0; y < H; y++)
 		{
-			if (charaters_[0].game_score_ > charaters_[1].game_score_) {
-				return WinningStatus::WIN;
+			if (this->my_board_[y][action] == 0 && this->enemy_board_[y][action] == 0)
+			{
+				this->my_board_[y][action] = 1;
+				coordinate = std::pair<int, int>(y, action);
+				break;
 			}
-			else if (charaters_[0].game_score_ < charaters_[1].game_score_) {
-				return WinningStatus::LOSE;
-			}
-			else
-				return WinningStatus::DRAW;
-		}
-		else
-		{
-			return WinningStatus::NONE;
 		}
 	}
 };
+	
