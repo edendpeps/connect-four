@@ -128,10 +128,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="connectfour.cpp" />
-    <ClCompile Include="game.cpp" />
     <ClCompile Include="mini-max.cpp" />
     <ClCompile Include="Monte_Carlo.cpp" />
-    <ClCompile Include="소스.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ConnectFourState.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

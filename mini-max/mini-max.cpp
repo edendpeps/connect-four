@@ -11,12 +11,20 @@
 #include <iostream>
 #include <functional>
 #include <queue>
+#include "ConnectFourState.hpp"
 #include <set>
 
-using ScoreType = int64_t;
+ConnectFourState::ConnectFourState() {}
+using State = ConnectFourState;
 
 
-int main()
+namespace minimax
 {
+	//미니맥스 점수계산
 
+	//미니맥스 행동결정
+	int minimaxAction(const State& state, const int depth)
+	{
+		ScoreType best_action = 
+	}
 }

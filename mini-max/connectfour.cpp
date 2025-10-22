@@ -11,7 +11,9 @@
 #include <iostream>
 #include <functional>
 #include <queue>
+#include "ConnectFourState.hpp"
 #include <set>
+#include <limits> // 추가: 입력 유효성 처리에 필요
 #pragma GCC diagnostic ignored "-Wsign-compare"
 std::random_device rnd;
 std::mt19937 mt_for_action(0);
@@ -39,243 +41,235 @@ public:
     }
 };
 
-constexpr const int H = 6; // 미로의 높이
-constexpr const int W = 7; // 미로의 너비
+ConnectFourState::ConnectFourState() {}
 
-using ScoreType = int64_t;
-constexpr const ScoreType INF = 1000000000LL;
+bool ConnectFourState::isDone() const {
+    return winning_status_ != WinningStatus::NONE;
+}
 
-enum WinningStatus
+void ConnectFourState::advance(const int action)
 {
-    WIN,
-    LOSE,
-    DRAW,
-    NONE,
-};
-
-class ConnectFourState
-{
-private:
-    static constexpr const int dx[2] = { 1, -1 };          // 이동 방향의 x성분
-    static constexpr const int dy_right_up[2] = { 1, -1 }; // "／"대각선 방향의 x성분
-    static constexpr const int dy_left_up[2] = { -1, 1 };  // "\" 대각선 방향의 x성분
-
-    bool is_first_ = true; // 선공 여부
-    int my_board_[H][W] = {};
-    int enemy_board_[H][W] = {};
-    WinningStatus winning_status_ = WinningStatus::NONE;
-
-public:
-    ConnectFourState()
+    std::pair<int, int> coordinate(-1, -1);
+    for (int y = 0; y < H; y++)
     {
-    }
-
-    // [모든 게임에서 구현] : 게임 종료 판정
-    bool isDone() const
-    {
-        return winning_status_ != WinningStatus::NONE;
-    }
-
-    // [모든 게임에서 구현] : 지정한 action으로 게임을 1턴 진행하고 다음 플레이어 시점의 게임판으로 만든다.
-    void advance(const int action)
-    {
-        std::pair<int, int> coordinate;
-        for (int y = 0; y < H; y++)
+        if (this->my_board_[y][action] == 0 && this->enemy_board_[y][action] == 0)
         {
-            if (this->my_board_[y][action] == 0 && this->enemy_board_[y][action] == 0)
+            this->my_board_[y][action] = 1;
+            coordinate = std::pair<int, int>(y, action);
+            break;
+        }
+    }
+
+    // 가로 체크
+    {
+        auto que = std::deque<std::pair<int, int>>();
+        que.emplace_back(coordinate);
+        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
+        int count = 0;
+        while (!que.empty())
+        {
+            const auto& tmp_cod = que.front();
+            que.pop_front();
+            ++count;
+            if (count >= 4)
             {
-                this->my_board_[y][action] = 1;
-                coordinate = std::pair<int, int>(y, action);
+                this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 4연속이면 상대 패배
+                break;
+            }
+            check[tmp_cod.first][tmp_cod.second] = true;
+
+            for (int a = 0; a < 2; a++)
+            {
+                int ty = tmp_cod.first;
+                int tx = tmp_cod.second + dx[a];
+
+                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
+                {
+                    que.emplace_back(ty, tx);
+                }
+            }
+        }
+    }
+    // "／" 체크
+    if (!isDone())
+    {
+        auto que = std::deque<std::pair<int, int>>();
+        que.emplace_back(coordinate);
+        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
+        int count = 0;
+        while (!que.empty())
+        {
+            const auto& tmp_cod = que.front();
+            que.pop_front();
+            ++count;
+            if (count >= 4)
+            {
+                this->winning_status_ = WinningStatus::LOSE;
+                break;
+            }
+            check[tmp_cod.first][tmp_cod.second] = true;
+
+            for (int a = 0; a < 2; a++)
+            {
+                int ty = tmp_cod.first + dy_right_up[a];
+                int tx = tmp_cod.second + dx[a];
+
+                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
+                {
+                    que.emplace_back(ty, tx);
+                }
+            }
+        }
+    }
+    // "\" 체크
+    if (!isDone())
+    {
+        auto que = std::deque<std::pair<int, int>>();
+        que.emplace_back(coordinate);
+        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
+        int count = 0;
+        while (!que.empty())
+        {
+            const auto& tmp_cod = que.front();
+            que.pop_front();
+            ++count;
+            if (count >= 4)
+            {
+                this->winning_status_ = WinningStatus::LOSE;
+                break;
+            }
+            check[tmp_cod.first][tmp_cod.second] = true;
+
+            for (int a = 0; a < 2; a++)
+            {
+                int ty = tmp_cod.first + dy_left_up[a];
+                int tx = tmp_cod.second + dx[a];
+
+                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
+                {
+                    que.emplace_back(ty, tx);
+                }
+            }
+        }
+    }
+    // 세로 체크
+    if (!isDone())
+    {
+        int ty = coordinate.first;
+        int tx = coordinate.second;
+        bool is_win = true;
+        for (int i = 0; i < 4; i++)
+        {
+            bool is_mine = (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1);
+
+            if (!is_mine)
+            {
+                is_win = false;
+                break;
+            }
+            --ty;
+        }
+        if (is_win)
+        {
+            this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 4연속이면 상대 패배
+        }
+    }
+
+    std::swap(my_board_, enemy_board_);
+    is_first_ = !is_first_;
+    if (this->winning_status_ == WinningStatus::NONE && legalActions().size() == 0)
+    {
+        this->winning_status_ = WinningStatus::DRAW;
+    }
+}
+
+std::vector<int> ConnectFourState::legalActions() const
+{
+    std::vector<int> actions;
+    for (int x = 0; x < W; x++)
+        for (int y = H - 1; y >= 0; y--)
+        {
+            if (my_board_[y][x] == 0 && enemy_board_[y][x] == 0)
+            {
+                actions.emplace_back(x);
                 break;
             }
         }
+    return actions;
+}
 
-        { // 가로 방향으로 연속인가 판정한다.
+WinningStatus ConnectFourState::getWinningStatus() const {
+    return this->winning_status_;
+}
 
-            auto que = std::deque<std::pair<int, int>>();
-            que.emplace_back(coordinate);
-            std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-            int count = 0;
-            while (!que.empty())
-            {
-                const auto& tmp_cod = que.front();
-                que.pop_front();
-                ++count;
-                if (count >= 4)
-                {
-                    this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 연속이면 상대방의 패배
-                    break;
-                }
-                check[tmp_cod.first][tmp_cod.second] = true;
-
-                for (int action = 0; action < 2; action++)
-                {
-                    int ty = tmp_cod.first;
-                    int tx = tmp_cod.second + dx[action];
-
-                    if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                    {
-                        que.emplace_back(ty, tx);
-                    }
-                }
-            }
-        }
-        if (!isDone())
-        { // "／"방향으로 연속인가 판정한다.
-            auto que = std::deque<std::pair<int, int>>();
-            que.emplace_back(coordinate);
-            std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-            int count = 0;
-            while (!que.empty())
-            {
-                const auto& tmp_cod = que.front();
-                que.pop_front();
-                ++count;
-                if (count >= 4)
-                {
-                    this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 연속이면 상대방의 패배
-                    break;
-                }
-                check[tmp_cod.first][tmp_cod.second] = true;
-
-                for (int action = 0; action < 2; action++)
-                {
-                    int ty = tmp_cod.first + dy_right_up[action];
-                    int tx = tmp_cod.second + dx[action];
-
-                    if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                    {
-                        que.emplace_back(ty, tx);
-                    }
-                }
-            }
-        }
-
-        if (!isDone())
-        { // "\"방향으로 연속인가 판정한다.
-
-            auto que = std::deque<std::pair<int, int>>();
-            que.emplace_back(coordinate);
-            std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-            int count = 0;
-            while (!que.empty())
-            {
-                const auto& tmp_cod = que.front();
-                que.pop_front();
-                ++count;
-                if (count >= 4)
-                {
-                    this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 연속이면 상대방의 패배
-                    break;
-                }
-                check[tmp_cod.first][tmp_cod.second] = true;
-
-                for (int action = 0; action < 2; action++)
-                {
-                    int ty = tmp_cod.first + dy_left_up[action];
-                    int tx = tmp_cod.second + dx[action];
-
-                    if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                    {
-                        que.emplace_back(ty, tx);
-                    }
-                }
-            }
-        }
-        if (!isDone())
-        { // 세로 방향으로 연속인가 판정한다.
-
-            int ty = coordinate.first;
-            int tx = coordinate.second;
-            bool is_win = true;
-            for (int i = 0; i < 4; i++)
-            {
-                bool is_mine = (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1);
-
-                if (!is_mine)
-                {
-                    is_win = false;
-                    break;
-                }
-                --ty;
-            }
-            if (is_win)
-            {
-                this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 연속이면 상대방의 패배
-            }
-        }
-
-        std::swap(my_board_, enemy_board_);
-        is_first_ = !is_first_;
-        if (this->winning_status_ == WinningStatus::NONE && legalActions().size() == 0)
-        {
-            this->winning_status_ = WinningStatus::DRAW;
-        }
-    }
-
-    // [모든 게임에서 구현] : 현재 플레이어가 가능한 행동을 모두 획득한다.
-    std::vector<int> legalActions() const
+std::string ConnectFourState::toString() const
+{
+    std::stringstream ss("");
+    ss << "is_first:\t" << this->is_first_ << "\n";
+    for (int y = H - 1; y >= 0; y--)
     {
-        std::vector<int> actions;
         for (int x = 0; x < W; x++)
-            for (int y = H - 1; y >= 0; y--)
-            {
-                if (my_board_[y][x] == 0 && enemy_board_[y][x] == 0)
-                {
-                    actions.emplace_back(x);
-                    break;
-                }
-            }
-        return actions;
-    }
-
-    // [모든 게임에서 구현] : 승패 정보를 획득한다.
-    WinningStatus getWinningStatus() const
-    {
-        return this->winning_status_;
-    }
-
-    // [필수는 아니지만 구현하면 편리] : 현재 게임 상황을 문자열로 만든다.
-    std::string toString() const
-    {
-        std::stringstream ss("");
-
-        ss << "is_first:\t" << this->is_first_ << "\n";
-        for (int y = H - 1; y >= 0; y--)
         {
-            for (int x = 0; x < W; x++)
+            char c = '.';
+            if (my_board_[y][x] == 1)
             {
-                char c = '.';
-                if (my_board_[y][x] == 1)
-                {
-                    c = (is_first_ ? 'x' : 'o');
-                }
-                else if (enemy_board_[y][x] == 1)
-                {
-                    c = (is_first_ ? 'o' : 'x');
-                }
-                ss << c;
+                c = (is_first_ ? 'x' : 'o');
             }
-            ss << "\n";
+            else if (enemy_board_[y][x] == 1)
+            {
+                c = (is_first_ ? 'o' : 'x');
+            }
+            ss << c;
         }
-
-        return ss.str();
+        ss << "\n";
     }
-};
+    return ss.str();
+}
 
 using State = ConnectFourState;
 
 using AIFunction = std::function<int(const State&)>;
 using StringAIPair = std::pair<std::string, AIFunction>;
 
-// 무작위로 행동을 결정한다.
+// 무작위 행동
 int randomAction(const State& state)
 {
     auto legal_actions = state.legalActions();
     return legal_actions[mt_for_action() % (legal_actions.size())];
 }
 
-// 게임을 1회 플레이해서 게임 상황을 표시한다.
+// 사람 입력(1P): 열 번호를 입력받아 검증
+int humanAction(const State& state)
+{
+    using std::cout;
+    using std::cin;
+    using std::endl;
+
+    auto legal = state.legalActions();
+    std::set<int> ok(legal.begin(), legal.end());
+
+    int col;
+    while (true)
+    {
+        cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
+        if (!(cin >> col))
+        {
+            cin.clear();
+            cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            cout << "숫자를 입력하세요.\n";
+            continue;
+        }
+        if (0 <= col && col < W && ok.count(col))
+        {
+            return col;
+        }
+        cout << "그 열은 둘 수 없습니다. 가능한 열: ";
+        for (auto c : legal) cout << c << " ";
+        cout << endl;
+    }
+}
+
+// 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
 void playGame()
 {
     using std::cout;
@@ -284,25 +278,22 @@ void playGame()
     cout << state.toString() << endl;
     while (!state.isDone())
     {
-        // 1p
+        // 1p (사람)
         {
             cout << "1p ------------------------------------" << endl;
-            int action = randomAction(state);
+            int action = humanAction(state);
             cout << "action " << action << endl;
-            state.advance(action); // (a-1) 여기서 시점이 바뀌어서 2p 시점이 된다.
+            state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
             cout << state.toString() << endl;
             if (state.isDone())
             {
-
-                switch (state.getWinningStatus()) // (a-2) a-1에서 2p 시점이 되었으므로 WIN이라면 2p가 승리
+                switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
                 {
                 case (WinningStatus::WIN):
-                    cout << "winner: "
-                        << "2p" << endl;
+                    cout << "winner: 2p" << endl;
                     break;
                 case (WinningStatus::LOSE):
-                    cout << "winner: "
-                        << "1p" << endl;
+                    cout << "winner: 1p" << endl;
                     break;
                 default:
                     cout << "DRAW" << endl;
@@ -311,25 +302,22 @@ void playGame()
                 break;
             }
         }
-        // 2p
+        // 2p (랜덤 AI)
         {
             cout << "2p ------------------------------------" << endl;
             int action = randomAction(state);
             cout << "action " << action << endl;
-            state.advance(action); // (b-1) 여기서 시점이 바뀌어서 1p 시점이 된다.
+            state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
             cout << state.toString() << endl;
             if (state.isDone())
             {
-
-                switch (state.getWinningStatus()) // (b-2) b-1에서 1p 시점이 되었으므로 WIN이라면 1p가 승리
+                switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
                 {
                 case (WinningStatus::WIN):
-                    cout << "winner: "
-                        << "1p" << endl;
+                    cout << "winner: 1p" << endl;
                     break;
                 case (WinningStatus::LOSE):
-                    cout << "winner: "
-                        << "2p" << endl;
+                    cout << "winner: 2p" << endl;
                     break;
                 default:
                     cout << "DRAW" << endl;
@@ -344,6 +332,5 @@ void playGame()
 int main()
 {
     playGame();
-
     return 0;
 }
