@@ -47,6 +47,7 @@ bool ConnectFourState::isDone() const {
     return winning_status_ != WinningStatus::NONE;
 }
 
+
 void ConnectFourState::advance(const int action)
 {
     std::pair<int, int> coordinate(-1, -1);
