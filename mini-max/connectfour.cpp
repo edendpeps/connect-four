@@ -12,9 +12,9 @@
 #include <functional>
 #include <queue>
 #include "ConnectFourState.hpp"
+#include "minimax.hpp"
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
-#pragma GCC diagnostic ignored "-Wsign-compare"
 std::random_device rnd;
 std::mt19937 mt_for_action(0);
 
@@ -47,6 +47,14 @@ bool ConnectFourState::isDone() const {
     return winning_status_ != WinningStatus::NONE;
 }
 
+// helper: (y,x)에서 (dy,dx) 방향으로 내 돌 연속 길이
+inline int run(const int board[H][W], int y, int x, int dy, int dx) {
+    int cnt = 0;
+    while (y >= 0 && y < H && x >= 0 && x < W && board[y][x] == 1) {
+        ++cnt; y += dy; x += dx;
+    }
+    return cnt;
+}
 
 void ConnectFourState::advance(const int action)
 {
@@ -306,7 +314,8 @@ void playGame()
         // 2p (랜덤 AI)
         {
             cout << "2p ------------------------------------" << endl;
-            int action = randomAction(state);
+            int action = negamaxAction(state, 5);
+            std::cout << duration << "ms\n";
             cout << "action " << action << endl;
             state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
             cout << state.toString() << endl;

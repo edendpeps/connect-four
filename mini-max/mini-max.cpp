@@ -1,149 +1,157 @@
-﻿#include <string>
-#include <array>
+﻿#include <algorithm>
+#include <string>
 #include <vector>
 #include <sstream>
-#include <utility>
-#include <random>
-#include <assert.h>
-#include <math.h>
-#include <chrono>
-#include <algorithm>
+#include <cmath>
 #include <iostream>
-#include <functional>
-#include <queue>
+#include <chrono>
 #include "ConnectFourState.hpp"
-#include <set>
+#include "minimax.hpp"
 
-ConnectFourState::ConnectFourState() {} // 커넥트포 클래스 참조
 using State = ConnectFourState; // 커넥트포 
 
-using ScoreType = int64_t;
-constexpr const ScoreType INF = 1000000000LL;
+// 평가 가중치(감각치, 필요 시 조정)
+static constexpr int WIN_SCORE = 100000000; // 종결 가중치(절대적으로 큼)
+static constexpr int THREE_OPEN = 1000;      // 내 3 + 빈1
+static constexpr int THREE_OPEN_BLOCK = 1200;      // 상대 3 + 빈1 (더 크게 패널티)
+static constexpr int TWO_OPEN = 50;        // 내 2 + 빈2
+static constexpr int CENTER_BONUS_PIECE = 6;         // 중앙 열 돌 1개당 보너스
+double duration;
 
-int evaluate(const State& s) {
-	// 1) 종결 우선
+// toString()을 파싱해서 보드 접근: y=0이 바닥(게임 내부 좌표와 일치)
+static inline void parseBoard(const State& s, std::vector<std::string>& rows) {
+	rows.clear();
+	std::stringstream ss(s.toString());
+	std::string line;
+
+	// 첫 줄: "is_first:\tX" 버린다
+	std::getline(ss, line);
+	for (int i = 0; i < H; ++i) {
+		std::getline(ss, line);
+		rows.push_back(line);
+	}
+	// rows[0]가 최상단, rows[H-1]이 바닥. 접근 편의 람다:
+	// at(y,x): y=0(바닥) ~ H-1(천장)
+}
+
+static inline char at_cell(const std::vector<std::string>& rows, int y, int x) {
+	// rows는 top→bottom이므로 뒤집어서 접근
+	return rows[H - 1 - y][x]; // 'x' = 현재 플레이어, 'o' = 상대, '.' = 빈칸
+}
+
+// 4칸 윈도우 점수 계산
+static inline int score_window(const std::vector<std::string>& rows,
+	int y0, int x0, int dy, int dx) {
+	int my = 0, opp = 0, emp = 0;
+	for (int k = 0; k < 4; k++) {
+		char c = at_cell(rows, y0 + k * dy, x0 + k * dx);
+		if (c == 'x') my++;
+		else if (c == 'o') opp++;
+		else               emp++;
+	}
+	if (my == 4)  return  WIN_SCORE;
+	if (opp == 4) return -WIN_SCORE;
+
+	int s = 0;
+	if (my == 3 && emp == 1) s += THREE_OPEN;
+	if (my == 2 && emp == 2) s += TWO_OPEN;
+	if (opp == 3 && emp == 1) s -= THREE_OPEN_BLOCK;
+	return s;
+}
+
+// 현재 플레이어 관점 평가
+static inline int eval(const State& s) {
 	if (s.isDone()) {
+		// 너의 규칙: "방금 둔 쪽 승리 → LOSE 기록"
+		// 현재 관점에서 LOSE = 내가 이김, WIN = 내가 짐
 		switch (s.getWinningStatus()) {
-		case WinningStatus::LOSE: return 100000000;  // 현재 시점(두는 쪽) 승리
-		case WinningStatus::WIN:  return -100000000; // 현재 시점 패배
+		case WinningStatus::LOSE: return  WIN_SCORE;
+		case WinningStatus::WIN:  return -WIN_SCORE;
 		default: return 0; // DRAW
 		}
 	}
 
-	static const int WIN_SCORE = 100000000;
-	static const int THREE_OPEN = 1000;
-	static const int THREE_OPEN_BLOCK = 1200;
-	static const int TWO_OPEN = 50;
-	static const int CENTER_BONUS_PER_PIECE = 6;
+	std::vector<std::string> rows;
+	parseBoard(s, rows);
 
 	int score = 0;
 
-	// 중앙 보너스
-	const int centerX = W / 2;
-	for (int y = 0; y < H; ++y) {
-		// 내 말은 'x'/'o' 표기가 아니라 내부적으로 my_board==1이므로
-		// 문자열을 파싱할 필요 없이, 출력용 char 없이 평가하려면
-		// State 내부 보드를 못 보니 toString으로 대체하기 어렵다.
-		// → 간단히: 보드 문자로 읽기
+	// 가로
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x <= W - 4; ++x)
+			score += score_window(rows, y, x, 0, 1);
 
-	}
-
-	// ---- 권장: 보드 접근이 필요하니 State에 보드 읽기용 getter를 추가하는 게 정석.
-	// 지금 구조를 그대로 간다면 toString()으로 문자를 읽어오는 트릭을 쓸 수도 있으나 비효율.
-	// 아래는 toString()을 이용한 안전한(하지만 느린) 버전 예시:
-
-	auto boardStr = s.toString();
-	// boardStr은 맨 위줄부터 찍힘. 파싱 편의상 2차원 배열로 재구성
-	// 형식: 첫줄 "is_first:\tX\n", 이후 H줄의 보드, 각 줄 W문자 + '\n'
-	std::vector<std::string> rows;
-	{
-		std::stringstream ss(boardStr);
-		std::string line;
-		std::getline(ss, line); // is_first 라인 버림
-		for (int i = 0; i < H; ++i) {
-			std::getline(ss, line);
-			rows.push_back(line);
-		}
-	}
-	// rows[0]가 최상단 줄(시각화 상단), rows[H-1]이 바닥. 좌표 변환 주의.
-	auto at = [&](int y, int x)->char { return rows[H - 1 - y][x]; }; // y=0 바닥이 되도록.
-
-	auto score_window = [&](int y0, int x0, int dy, int dx) {
-		int my = 0, opp = 0, emp = 0;
-		for (int k = 0; k < 4; k++) {
-			char c = at(y0 + k * dy, x0 + k * dx);
-			if (c == 'x') my++;
-			else if (c == 'o') opp++;
-			else emp++;
-		}
-		if (my == 4) return WIN_SCORE;
-		if (opp == 4) return -WIN_SCORE;
-		int s = 0;
-		if (my == 3 && emp == 1) s += THREE_OPEN;
-		if (my == 2 && emp == 2) s += TWO_OPEN;
-		if (opp == 3 && emp == 1) s -= THREE_OPEN_BLOCK;
-		return s;
-		};
-
-	// 2) 윈도우 스캔 (가로)
-	for (int y = 0; y < H; y++)
-		for (int x = 0; x <= W - 4; x++)
-			score += score_window(y, x, 0, 1);
 	// 세로
-	for (int y = 0; y <= H - 4; y++)
-		for (int x = 0; x < W; x++)
-			score += score_window(y, x, 1, 0);
-	// 대각 
-	for (int y = 0; y <= H - 4; y++)
-		for (int x = 0; x <= W - 4; x++)
-			score += score_window(y, x, 1, 1);
-	// 대각 /
-	for (int y = 3; y < H; y++)
-		for (int x = 0; x <= W - 4; x++)
-			score += score_window(y, x, -1, 1);
+	for (int y = 0; y <= H - 4; ++y)
+		for (int x = 0; x < W; ++x)
+			score += score_window(rows, y, x, 1, 0);
 
-	// 3) 중앙 가산 (문자 보드 기준)
-	for (int y = 0; y < H; y++) {
-		if (at(y, centerX) == 'x') score += CENTER_BONUS_PER_PIECE;
-	}
+	// 대각 
+	for (int y = 0; y <= H - 4; ++y)
+		for (int x = 0; x <= W - 4; ++x)
+			score += score_window(rows, y, x, 1, 1);
+
+	// 대각 /
+	for (int y = 3; y < H; ++y)
+		for (int x = 0; x <= W - 4; ++x)
+			score += score_window(rows, y, x, -1, 1);
+
+	// 중앙 열 가산
+	const int cx = W / 2;
+	for (int y = 0; y < H; ++y)
+		if (at_cell(rows, y, cx) == 'x') score += CENTER_BONUS_PIECE;
 
 	return score;
 }
 
-int minimax(State state, int depth, bool maximizingPlayer) {
-	if (depth == 0 || state.isDone()) return evaluate(state);
-
-	auto actions = state.legalActions();
-	if (maximizingPlayer) {
-		int best = -INF;
-		for (int a : actions) {
-			State child = state;
-			child.advance(a);
-			int val = minimax(child, depth - 1, false);
-			if (val > best) best = val;
-		}
-		return best;
-	}
-	else {
-		int best = INF;
-		for (int a : actions) {
-			State child = state;
-			child.advance(a);
-			int val = minimax(child, depth - 1, true);
-			if (val < best) best = val;
-		}
-		return best;
-	}
+// 중앙 우선 정렬(선택)
+static inline void order_actions(std::vector<int>& acts) {
+	const int c = W / 2;
+	std::sort(acts.begin(), acts.end(),
+		[c](int a, int b) { return std::abs(a - c) < std::abs(b - c); });
 }
 
-int minimaxAction(const State& state, int depth) {
-	auto actions = state.legalActions();
-	int bestA = actions.front();
-	int bestV = -INF;
-	for (int a : actions) {
+// 네가맥스 (알파베타 없음), 시간측정
+int negamax(State state, int depth) {
+	auto start = std::chrono::high_resolution_clock::now();
+	if (depth == 0 || state.isDone()) return eval(state);
+
+	auto acts = state.legalActions();
+	if (acts.empty()) return eval(state);
+
+	order_actions(acts);
+
+	int best = -1000000000;
+	for (int a : acts) {
 		State child = state;
 		child.advance(a);
-		int v = minimax(child, depth - 1, false);
+
+		// 즉시 종결 빠른 처리
+		int v = child.isDone() ? eval(child) : -negamax(child, depth - 1);
+
+		if (v > best) best = v;
+	}
+	auto end = std::chrono::high_resolution_clock::now();
+	duration = std::chrono::duration<double, std::milli>(end - start).count();
+	return best;
+}
+
+// 최선 수 선택
+int negamaxAction(const State& state, int depth) {
+	auto acts = state.legalActions();
+	if (acts.empty()) return 0; // 방어적
+
+	order_actions(acts);
+
+	int bestA = acts.front();
+	int bestV = -1000000000;
+
+	for (int a : acts) {
+		State child = state;
+		child.advance(a);
+
+		int v = child.isDone() ? eval(child) : -negamax(child, depth - 1);
+
 		if (v > bestV) { bestV = v; bestA = a; }
 	}
 	return bestA;
