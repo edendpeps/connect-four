@@ -55,141 +55,46 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
     }
     return cnt;
 }
-
 void ConnectFourState::advance(const int action)
 {
+    // 말 놓기
     std::pair<int, int> coordinate(-1, -1);
-    for (int y = 0; y < H; y++)
-    {
-        if (this->my_board_[y][action] == 0 && this->enemy_board_[y][action] == 0)
-        {
-            this->my_board_[y][action] = 1;
-            coordinate = std::pair<int, int>(y, action);
+    for (int y = 0; y < H; ++y) {
+        if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
+            my_board_[y][action] = 1;
+            coordinate = { y, action };
             break;
         }
     }
+    // 안전장치
+    // assert(coordinate.first != -1);
 
-    // 가로 체크
-    {
-        auto que = std::deque<std::pair<int, int>>();
-        que.emplace_back(coordinate);
-        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-        int count = 0;
-        while (!que.empty())
-        {
-            const auto& tmp_cod = que.front();
-            que.pop_front();
-            ++count;
-            if (count >= 4)
-            {
-                this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 4연속이면 상대 패배
-                break;
-            }
-            check[tmp_cod.first][tmp_cod.second] = true;
+    int y0 = coordinate.first;
+    int x0 = coordinate.second;
 
-            for (int a = 0; a < 2; a++)
-            {
-                int ty = tmp_cod.first;
-                int tx = tmp_cod.second + dx[a];
+    auto has4 = [&](int dy, int dx) {
+        // 양방향 합산에서 중앙을 두 번 세니까 -1
+        int c = run(my_board_, y0, x0, dy, dx)
+            + run(my_board_, y0, x0, -dy, -dx) - 1;
+        return c >= 4;
+        };
 
-                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                {
-                    que.emplace_back(ty, tx);
-                }
-            }
-        }
-    }
-    // "／" 체크
-    if (!isDone())
-    {
-        auto que = std::deque<std::pair<int, int>>();
-        que.emplace_back(coordinate);
-        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-        int count = 0;
-        while (!que.empty())
-        {
-            const auto& tmp_cod = que.front();
-            que.pop_front();
-            ++count;
-            if (count >= 4)
-            {
-                this->winning_status_ = WinningStatus::LOSE;
-                break;
-            }
-            check[tmp_cod.first][tmp_cod.second] = true;
-
-            for (int a = 0; a < 2; a++)
-            {
-                int ty = tmp_cod.first + dy_right_up[a];
-                int tx = tmp_cod.second + dx[a];
-
-                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                {
-                    que.emplace_back(ty, tx);
-                }
-            }
-        }
-    }
-    // "\" 체크
-    if (!isDone())
-    {
-        auto que = std::deque<std::pair<int, int>>();
-        que.emplace_back(coordinate);
-        std::vector<std::vector<bool>> check(H, std::vector<bool>(W, false));
-        int count = 0;
-        while (!que.empty())
-        {
-            const auto& tmp_cod = que.front();
-            que.pop_front();
-            ++count;
-            if (count >= 4)
-            {
-                this->winning_status_ = WinningStatus::LOSE;
-                break;
-            }
-            check[tmp_cod.first][tmp_cod.second] = true;
-
-            for (int a = 0; a < 2; a++)
-            {
-                int ty = tmp_cod.first + dy_left_up[a];
-                int tx = tmp_cod.second + dx[a];
-
-                if (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1 && !check[ty][tx])
-                {
-                    que.emplace_back(ty, tx);
-                }
-            }
-        }
-    }
-    // 세로 체크
-    if (!isDone())
-    {
-        int ty = coordinate.first;
-        int tx = coordinate.second;
-        bool is_win = true;
-        for (int i = 0; i < 4; i++)
-        {
-            bool is_mine = (ty >= 0 && ty < H && tx >= 0 && tx < W && my_board_[ty][tx] == 1);
-
-            if (!is_mine)
-            {
-                is_win = false;
-                break;
-            }
-            --ty;
-        }
-        if (is_win)
-        {
-            this->winning_status_ = WinningStatus::LOSE; // 자신의 돌이 4연속이면 상대 패배
-        }
+    // 4방향 체크: 가로, 세로, 대각(\,/)
+    if (has4(0, 1) || has4(1, 0) || has4(1, 1) || has4(1, -1)) {
+        // "방금 둔 쪽 승리 → LOSE" (네 코딩 규칙 유지)
+        this->winning_status_ = WinningStatus::LOSE;
+        return; // ★ 승리 시 swap하지 말고 바로 종료
     }
 
+    // 더 둘 곳 없으면 무승부
+    if (legalActions().empty()) {
+        this->winning_status_ = WinningStatus::DRAW;
+        return;
+    }
+
+    // 턴 전환
     std::swap(my_board_, enemy_board_);
     is_first_ = !is_first_;
-    if (this->winning_status_ == WinningStatus::NONE && legalActions().size() == 0)
-    {
-        this->winning_status_ = WinningStatus::DRAW;
-    }
 }
 
 std::vector<int> ConnectFourState::legalActions() const
