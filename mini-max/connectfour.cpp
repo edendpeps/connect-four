@@ -219,7 +219,7 @@ void playGame()
         // 2p (랜덤 AI)
         {
             cout << "2p ------------------------------------" << endl;
-            int action = negamaxAction(state, 5);
+            int action = negamaxAction(state, 6);
             std::cout << duration << "ms\n";
             cout << "action " << action << endl;
             state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
