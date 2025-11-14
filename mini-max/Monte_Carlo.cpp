@@ -1,6 +1,4 @@
-
-/*
-	//미니맥스 완성 후 머지 및 푸쉬 완료, 몬테카를로 만들차례
+//미니맥스 완성 후 머지 및 푸쉬 완료, 몬테카를로 만들차례
 #include "minimax.hpp"
 #include "ConnectFourState.hpp"
 #include <algorithm>
@@ -48,4 +46,3 @@ int MontecarloAction(const State& state, int playout_num)
 	}
 
 }
-*/
