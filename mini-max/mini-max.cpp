@@ -11,27 +11,40 @@
 using State = ConnectFourState; // 커넥트포 
 
 // 평가 가중치(감각치, 필요 시 조정)
+static constexpr int INF = 100000000;
 static constexpr int WIN_SCORE = 100000000; // 종결 가중치(절대적으로 큼)
 static constexpr int THREE_OPEN = 1000;      // 내 3 + 빈1
-static constexpr int THREE_OPEN_BLOCK = 1200;      // 상대 3 + 빈1 (더 크게 패널티)
+static constexpr int THREE_OPEN_BLOCK = 2000;      // 상대 3 + 빈1 (더 크게 패널티)
 static constexpr int TWO_OPEN = 50;        // 내 2 + 빈2
 static constexpr int CENTER_BONUS_PIECE = 6;         // 중앙 열 돌 1개당 보너스
 double duration;
 
 // toString()을 파싱해서 보드 접근: y=0이 바닥(게임 내부 좌표와 일치)
-static inline void parseBoard(const State& s, std::vector<std::string>& rows) {
+static inline void parseBoard(
+	const State& s,
+	std::vector<std::string>& rows,
+	bool& is_first_out
+) {
 	rows.clear();
 	std::stringstream ss(s.toString());
 	std::string line;
 
-	// 첫 줄: "is_first:\tX" 버린다
+	// 첫 줄: "is_first:\t0" 또는 "is_first:\t1"
 	std::getline(ss, line);
+	{
+		auto pos = line.find('\t');
+		int v = 0;
+		if (pos != std::string::npos) {
+			v = std::stoi(line.substr(pos + 1));
+		}
+		is_first_out = (v != 0);
+	}
+
+	// 이후 H개의 줄 = 보드
 	for (int i = 0; i < H; ++i) {
 		std::getline(ss, line);
 		rows.push_back(line);
 	}
-	// rows[0]가 최상단, rows[H-1]이 바닥. 접근 편의 람다:
-	// at(y,x): y=0(바닥) ~ H-1(천장)
 }
 
 static inline char at_cell(const std::vector<std::string>& rows, int y, int x) {
@@ -62,18 +75,30 @@ static inline int score_window(const std::vector<std::string>& rows,
 // 현재 플레이어 관점 평가
 static inline int eval(const State& s) {
 	if (s.isDone()) {
-		// 너의 규칙: "방금 둔 쪽 승리 → LOSE 기록"
-		// 현재 관점에서 LOSE = 내가 이김, WIN = 내가 짐
 		switch (s.getWinningStatus()) {
-		case WinningStatus::LOSE: return  WIN_SCORE;
-		case WinningStatus::WIN:  return -WIN_SCORE;
-		default: return 0; // DRAW
+		case WinningStatus::LOSE:
+			// 직전에 둔 쪽이 승리 → 지금 둘 차례인 쪽은 패배
+			return -WIN_SCORE;   // ★ 여기 -INF
+		case WinningStatus::WIN:
+			// 직전에 둔 쪽이 패배 → 지금 둘 차례인 쪽이 승리
+			return  WIN_SCORE;
+		default:
+			return 0;
 		}
 	}
-
 	std::vector<std::string> rows;
-	parseBoard(s, rows);
+	bool is_first = true;              // ← 선언
+	parseBoard(s, rows, is_first);     // ← 여기서 채워짐
 
+	// 후공 차례일 때(x/o 뒤집기)
+	if (!is_first) {
+		for (auto& row : rows) {
+			for (auto& ch : row) {
+				if (ch == 'x') ch = 'o';
+				else if (ch == 'o') ch = 'x';
+			}
+		}
+	}
 	int score = 0;
 
 	// 가로
@@ -113,7 +138,6 @@ static inline void order_actions(std::vector<int>& acts) {
 
 // 네가맥스 (알파베타 없음), 시간측정
 int negamax(State state, int depth) {
-	auto start = std::chrono::high_resolution_clock::now();
 	if (depth == 0 || state.isDone()) return eval(state);
 
 	auto acts = state.legalActions();
@@ -121,23 +145,22 @@ int negamax(State state, int depth) {
 
 	order_actions(acts);
 
-	int best = -1000000000;
+	int best = -INF;
 	for (int a : acts) {
 		State child = state;
 		child.advance(a);
 
-		// 즉시 종결 빠른 처리
-		int v = child.isDone() ? eval(child) : -negamax(child, depth - 1);
+		int v = -negamax(child, depth - 1);
 
 		if (v > best) best = v;
 	}
-	auto end = std::chrono::high_resolution_clock::now();
-	duration = std::chrono::duration<double, std::milli>(end - start).count();
 	return best;
 }
 
 // 최선 수 선택
 int negamaxAction(const State& state, int depth) {
+	auto start = std::chrono::high_resolution_clock::now();
+
 	auto acts = state.legalActions();
 	if (acts.empty()) return 0; // 방어적
 
@@ -150,9 +173,11 @@ int negamaxAction(const State& state, int depth) {
 		State child = state;
 		child.advance(a);
 
-		int v = child.isDone() ? eval(child) : -negamax(child, depth - 1);
+		int v = -negamax(child, depth - 1);
 
 		if (v > bestV) { bestV = v; bestA = a; }
 	}
+	auto end = std::chrono::high_resolution_clock::now();
+	duration = std::chrono::duration<double, std::milli>(end - start).count();
 	return bestA;
 }

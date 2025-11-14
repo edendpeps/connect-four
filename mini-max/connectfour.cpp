@@ -13,10 +13,10 @@
 #include <queue>
 #include "ConnectFourState.hpp"
 #include "minimax.hpp"
+#include "Monte_Carlo.hpp"
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
-std::random_device rnd;
-std::mt19937 mt_for_action(0);
+
 
 // 시간을 관리하는 클래스
 class TimeKeeper
@@ -57,7 +57,7 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 }
 void ConnectFourState::advance(const int action)
 {
-    // 말 놓기
+    // 1. 말 놓기
     std::pair<int, int> coordinate(-1, -1);
     for (int y = 0; y < H; ++y) {
         if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
@@ -66,35 +66,40 @@ void ConnectFourState::advance(const int action)
             break;
         }
     }
-    // 안전장치
-    // assert(coordinate.first != -1);
 
     int y0 = coordinate.first;
     int x0 = coordinate.second;
 
     auto has4 = [&](int dy, int dx) {
-        // 양방향 합산에서 중앙을 두 번 세니까 -1
         int c = run(my_board_, y0, x0, dy, dx)
             + run(my_board_, y0, x0, -dy, -dx) - 1;
         return c >= 4;
         };
 
-    // 4방향 체크: 가로, 세로, 대각(\,/)
-    if (has4(0, 1) || has4(1, 0) || has4(1, 1) || has4(1, -1)) {
-        // "방금 둔 쪽 승리 → LOSE" (네 코딩 규칙 유지)
-        this->winning_status_ = WinningStatus::LOSE;
-        return; // ★ 승리 시 swap하지 말고 바로 종료
+    bool win_now =
+        has4(0, 1) || has4(1, 0) || has4(1, 1) || has4(1, -1);
+
+    bool board_full = false;
+    {
+        auto acts = legalActions();    // 현재 판 기준으로 더 둘 곳 있는지
+        board_full = acts.empty();
     }
 
-    // 더 둘 곳 없으면 무승부
-    if (legalActions().empty()) {
-        this->winning_status_ = WinningStatus::DRAW;
-        return;
-    }
-
-    // 턴 전환
+    // 2. 턴 넘기기 (항상)
     std::swap(my_board_, enemy_board_);
     is_first_ = !is_first_;
+
+    // 3. 이제 state는 "다음에 둘 사람" 관점이다.
+    if (win_now) {
+        // 방금 둔 사람이 이겼으니까, 지금 state 입장에선 내가 진 것
+        winning_status_ = WinningStatus::LOSE;
+    }
+    else if (board_full) {
+        winning_status_ = WinningStatus::DRAW;
+    }
+    else {
+        winning_status_ = WinningStatus::NONE;
+    }
 }
 
 std::vector<int> ConnectFourState::legalActions() const
@@ -146,11 +151,7 @@ using AIFunction = std::function<int(const State&)>;
 using StringAIPair = std::pair<std::string, AIFunction>;
 
 // 무작위 행동
-int randomAction(const State& state)
-{
-    auto legal_actions = state.legalActions();
-    return legal_actions[mt_for_action() % (legal_actions.size())];
-}
+
 
 // 사람 입력(1P): 열 번호를 입력받아 검증
 int humanAction(const State& state)
@@ -192,7 +193,7 @@ void playGame()
     cout << state.toString() << endl;
     while (!state.isDone())
     {
-        // 1p (사람)
+        /*// 1p (사람)
         {
             cout << "1p ------------------------------------" << endl;
             int action = humanAction(state);
@@ -216,10 +217,36 @@ void playGame()
                 break;
             }
         }
-        // 2p (랜덤 AI)
+        */
+        //1p (Ai)
+        {
+            cout << "1p ------------------------------------" << endl;
+            int action = MontecarloAction(state, 2000);
+            std::cout << duration << "ms\n";
+            cout << "action " << action << endl;
+            state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
+            cout << state.toString() << endl;
+            if (state.isDone())
+            {
+                switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+                {
+                case (WinningStatus::WIN):
+                    cout << "winner: 2p" << endl;
+                    break;
+                case (WinningStatus::LOSE):
+                    cout << "winner: 1p" << endl;
+                    break;
+                default:
+                    cout << "DRAW" << endl;
+                    break;
+                }
+                break;
+            }
+        }
+        // 2p (AI)
         {
             cout << "2p ------------------------------------" << endl;
-            int action = negamaxAction(state, 6);
+            int action = negamaxAction(state, 5);
             std::cout << duration << "ms\n";
             cout << "action " << action << endl;
             state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.

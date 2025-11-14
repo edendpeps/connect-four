@@ -134,6 +134,7 @@
   <ItemGroup>
     <ClInclude Include="ConnectFourState.hpp" />
     <ClInclude Include="minimax.hpp" />
+    <ClInclude Include="Monte_Carlo.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
