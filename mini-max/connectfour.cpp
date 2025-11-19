@@ -221,14 +221,14 @@ void playGame()
         //1p (Ai)
         {
             cout << "1p ------------------------------------" << endl;
-            int action = MontecarloAction(state, 1500);
+            int action = MontecarloAction(state, 2000);
             std::cout << duration << "ms\n";
             cout << "action " << action << endl;
-            state.advance(action); 
+            state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
             cout << state.toString() << endl;
             if (state.isDone())
             {
-                switch (state.getWinningStatus()) 
+                switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
                 {
                 case (WinningStatus::WIN):
                     cout << "winner: 2p" << endl;
@@ -249,11 +249,11 @@ void playGame()
             int action = negamaxAction(state, 5);
             std::cout << duration << "ms\n";
             cout << "action " << action << endl;
-            state.advance(action); 
+            state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
             cout << state.toString() << endl;
             if (state.isDone())
             {
-                switch (state.getWinningStatus()) 
+                switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
                 {
                 case (WinningStatus::WIN):
                     cout << "winner: 1p" << endl;
