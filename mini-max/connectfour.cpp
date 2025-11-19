@@ -19,7 +19,8 @@
 
 
 // 시간을 관리하는 클래스
-const int time_limit = 1000;
+const int time_limit = 2000;
+const int minimax_depth = 6;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
 
@@ -204,6 +205,32 @@ void playGame()
 
 		//1p (Ai)
 		{
+			cout << minmax << " ------------------------------------" << endl;
+			int action = negamaxAction(state, minimax_depth, time_limit);
+			std::cout << duration << "ms\n";
+			cout << "action " << action << endl;
+			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
+			cout << state.toString() << endl;
+			if (state.isDone())
+			{
+				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+				{
+				case (WinningStatus::WIN):
+					cout << "winner: 1p" << endl;
+					break;
+				case (WinningStatus::LOSE):
+					cout << "winner: 2p" << endl;
+					break;
+				default:
+					cout << "DRAW" << endl;
+					break;
+				}
+				break;
+			}
+		}
+		// 2p (AI)
+		{
+
 			turn_count++;
 			cout << monte << " ------------------------------------" << endl;
 			int action = MontecarloAction(state, INF, time_limit);
@@ -220,31 +247,6 @@ void playGame()
 					break;
 				case (WinningStatus::LOSE):
 					cout << "winner: 1p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
-					break;
-				}
-				break;
-			}
-		}
-		// 2p (AI)
-		{
-			cout << minmax << " ------------------------------------" << endl;
-			int action = negamaxAction(state, 6, time_limit);
-			std::cout << duration << "ms\n";
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
-			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
-				{
-				case (WinningStatus::WIN):
-					cout << "winner: 1p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 2p" << endl;
 					break;
 				default:
 					cout << "DRAW" << endl;
