@@ -44,14 +44,17 @@ double playout(State state)
 	// 턴이 바뀌었으니까, 값도 뒤집어 주기
 	return 1.0 - playout(state);
 }
-int MontecarloAction(const State& state, int playout_num)
+int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 {
+	TimeKeeper tk(time_limit_ms);
+
 	auto start = std::chrono::high_resolution_clock::now();
 	auto legal_actions = state.legalActions();
 	auto values = std::vector<double>(legal_actions.size());
 	auto cnts = std::vector<double>(legal_actions.size());
 	for (int cnt = 0; cnt < playout_num; cnt++)
 	{
+		if (tk.isTimeOver()) break;
 		int index = cnt % legal_actions.size();
 		State next_state = state;
 		next_state.advance(legal_actions[index]);

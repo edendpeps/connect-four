@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <chrono>
 
 // 보드 크기 (여기 한 군데만 정의하고, 다른 .cpp들에서는 중복 정의하지 않기)
 constexpr int H = 6;
@@ -11,6 +12,28 @@ enum class WinningStatus {
     LOSE,
     DRAW,
     NONE,
+};
+
+class TimeKeeper
+{
+private:
+    std::chrono::high_resolution_clock::time_point start_time_;
+    int64_t time_threshold_;
+
+public:
+    // 시간 제한을 밀리초 단위로 지정해서 인스턴스를 생성한다.
+    TimeKeeper(const int64_t& time_threshold)
+        : start_time_(std::chrono::high_resolution_clock::now()),
+        time_threshold_(time_threshold)
+    {
+    }
+
+    // 인스턴스를 생성한 시점부터 지정한 시간 제한을 초과하지 않았는지 판정한다.
+    bool isTimeOver() const
+    {
+        auto diff = std::chrono::high_resolution_clock::now() - this->start_time_;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() >= time_threshold_;
+    }
 };
 
 class ConnectFourState

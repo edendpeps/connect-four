@@ -78,7 +78,7 @@ static inline int eval(const State& s) {
 		switch (s.getWinningStatus()) {
 		case WinningStatus::LOSE:
 			// 직전에 둔 쪽이 승리 → 지금 둘 차례인 쪽은 패배
-			return -WIN_SCORE;   // ★ 여기 -INF
+			return -WIN_SCORE;  
 		case WinningStatus::WIN:
 			// 직전에 둔 쪽이 패배 → 지금 둘 차례인 쪽이 승리
 			return  WIN_SCORE;
@@ -137,8 +137,10 @@ static inline void order_actions(std::vector<int>& acts) {
 }
 
 // 네가맥스 (알파베타 없음), 시간측정
-int negamax(State state, int depth) {
+int negamax(State state, int depth, TimeKeeper& tk) {
 	if (depth == 0 || state.isDone()) return eval(state);
+
+	if (tk.isTimeOver()) return eval(state);
 
 	auto acts = state.legalActions();
 	if (acts.empty()) return eval(state);
@@ -150,7 +152,7 @@ int negamax(State state, int depth) {
 		State child = state;
 		child.advance(a);
 
-		int v = -negamax(child, depth - 1);
+		int v = -negamax(child, depth - 1, tk);
 
 		if (v > best) best = v;
 	}
@@ -158,8 +160,9 @@ int negamax(State state, int depth) {
 }
 
 // 최선 수 선택
-int negamaxAction(const State& state, int depth) {
+int negamaxAction(const State& state, int depth, int time_limit_ms) {
 	auto start = std::chrono::high_resolution_clock::now();
+	TimeKeeper tk(time_limit_ms);
 
 	auto acts = state.legalActions();
 	if (acts.empty()) return 0; // 방어적
@@ -170,10 +173,12 @@ int negamaxAction(const State& state, int depth) {
 	int bestV = -1000000000;
 
 	for (int a : acts) {
+		if (tk.isTimeOver()) break;
+
 		State child = state;
 		child.advance(a);
 
-		int v = -negamax(child, depth - 1);
+		int v = -negamax(child, depth - 1, tk);
 
 		if (v > bestV) { bestV = v; bestA = a; }
 	}
