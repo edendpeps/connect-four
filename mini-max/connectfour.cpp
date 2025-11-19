@@ -19,7 +19,7 @@
 
 
 // 시간을 관리하는 클래스
-
+const int time_limit = 1000;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
 
@@ -206,7 +206,7 @@ void playGame()
 		{
 			turn_count++;
 			cout << monte << " ------------------------------------" << endl;
-			int action = MontecarloAction(state, INF, 500);
+			int action = MontecarloAction(state, INF, time_limit);
 			std::cout << "Turn : " << turn_count << endl << duration << "ms\n";
 			cout << "action " << action << endl;
 			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
@@ -231,7 +231,7 @@ void playGame()
 		// 2p (AI)
 		{
 			cout << minmax << " ------------------------------------" << endl;
-			int action = negamaxAction(state, 5, 500);
+			int action = negamaxAction(state, 6, time_limit);
 			std::cout << duration << "ms\n";
 			cout << "action " << action << endl;
 			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
