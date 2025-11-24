@@ -57,7 +57,7 @@ int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 		if (tk.isTimeOver()) break;
 		int index = cnt % legal_actions.size();
 		State next_state = state;
-		next_state.advance(legal_actions[index]);
+		next_state.advance(legal_actions[index]);	
 		values[index] += 1.0 - playout(next_state);
 		++cnts[index];
 

@@ -1,117 +1,145 @@
-#include<vector>
-#include <random>
-//캐릭터 정보
-struct Character {
-	int y_;
-	int x_;
-	int game_score_;
+#include "raylib.h"
+#include "ConnectFourState.hpp"
+#include "minimax.hpp"
+#include "Monte_Carlo.hpp"
+#include <algorithm>
+#include<iostream>
+#include <string>
+#include<sstream>
 
-	Character(const int y = 0, const int x = 0) : y_(y), x_(x), game_score_(0) {}
-};
-
-enum class WinningStatus {
-	WIN,
-	LOSE,
-	DRAW,
-	NONE
-};
-
-//생성자
-// ↑ → ↓ ← 순서 (또는 네가 원하는 방향 순서)
-constexpr int dx[4] = { 0, 1, 0, -1 };
-constexpr int dy[4] = { -1, 0, 1, 0 };
-constexpr const int H = 3;
-constexpr const int W = 3;
-constexpr const int END_TURN = 4;
-
-class Game
+// GUI 설정
+static constexpr int CELL = 40;
+static constexpr int PAD = 20;
+const int INF = 1000000000;
+int main()
 {
-private:
-	std::vector<std::vector<int>> points_;
-	int turn_;
-	std::vector<Character> characters_;
-public:
-	// 게임 생성
-	Game(const int seed) : points_(H, std::vector<int>(W)), turn_(0), characters_({ Character(H / 2,(W / 2) - 1), Character(H / 2, (W / 2) + 1) })
-	{
-		auto mt_for_construct = std::mt19937(seed);
-		for (int y = 0; y < H; y++)
-		{
-			for (int x = 0; x < W; x++)
-			{
-				int point = mt_for_construct() % 10;
-				if (characters_[0].y_ == y && characters_[0].x_ == x)
-				{
-					continue;
-				}
-				if (characters_[1].y_ == y && characters_[1].x_ == x)
-				{
-					continue;
-				}
-				this->points_[y][x] = point;
-			}
-		}
-	}
-	//게임 종료 판정
-	bool isDone() const
-	{
-		return this->turn_ == END_TURN;
-	}
-	//지정한 행동으로 진행하고 다음 플레이어 전환
-	void advance(const int action)
-	{
-		auto& character = this->characters_[0];
-		character.x_ += dx[action];
-		character.y_ += dy[action];
-		auto& point = this->points_[character.y_][character.x_];
-		if (point > 0)
-		{
-			character.game_score_ += point;
-			point = 0;
-		}
-		this->turn_++;
-		std::swap(this->characters_[0], this->characters_[1]);
-	}
-	//플레이어가 가능한 행동 모두 획득
-	std::vector<int> legalActions() const
-	{
-		std::vector<int> actions;
-		const auto& character = this->characters_[0];
-		for (int action = 0; action < 4; action++)
-		{
-			int ty = character.y_ + dy[action];
-			int tx = character.x_ + dx[action];
-			if (ty >= 0 && ty < H && tx >= 0 && tx < W)
-			{
-				actions.emplace_back(action);
-			}
-		}
-		return actions;
-	}
+    const int screenW = W * CELL + PAD * 2;
+    const int screenH = H * CELL + PAD * 2;
 
-	//승패
-	WinningStatus getWinningStatus() const
-	{
-		if (isDone())
-		{
-			if (characters_[0].game_score_ > characters_[1].game_score_) 
-			{
-				return WinningStatus::WIN;
-			}
-			else if (characters_[0].game_score_ < characters_[1].game_score_) 
-			{
-				return WinningStatus::LOSE;
-			}
-			else
-			{
-				return WinningStatus::DRAW;
-			}
-		}
-		else
-		{
-			return WinningStatus::NONE;
-		}
-	}
-	//현재 게임 상황을 문자열로
+    InitWindow(screenW, screenH, "Gomoku (using your C++ AI)");
+    SetTargetFPS(60);
 
-};
+    ConnectFourState state;
+
+    bool humanTurn = true; // 사람 선공(필요하면 바꿔)
+    int minimax_depth = 30;
+    int time_limit = 3000;   // ms
+    int playout_num = INF;
+
+    while (!WindowShouldClose())
+    {
+        // --- 입력(사람) ---
+        if (!state.isDone() && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        {
+            int mx = GetMouseX() - PAD;
+            int my = GetMouseY() - PAD;
+            if (0 <= mx && 0 <= my)
+            {
+                int x = mx / CELL;
+                int y = my / CELL;
+                if (0 <= x && x < W && 0 <= y && y < H)
+                {
+                    int action = y * W + x;
+                    auto legal = state.legalActions();
+                    if (std::find(legal.begin(), legal.end(), action) != legal.end())
+                    {
+                        state.advance(action);
+                        humanTurn = false;
+                    }
+                }
+            }
+            std::cout << "------------------------------------- 내 턴 -------------------------------------\n";
+            std::cout << state.toString();
+        }
+
+        // --- AI 턴 ---
+        if (!state.isDone() && !humanTurn)
+        {
+
+            // 여기서 AI 골라서 쓰면 됨.
+            //1) negamax
+            int a = negamaxAction(state, minimax_depth, time_limit);
+            std::cout << "AI action = " << a
+                << " (y=" << a / W << ", x=" << a % W << ")\n";
+            state.advance(a);
+            //2) MonteCarlo 쓰고 싶으면 위 줄 대신 이거:
+           //int a = MontecarloAction(state, playout_num, time_limit);
+            
+            state.advance(a);
+            humanTurn = true;
+            std::cout << "------------------------------------- AI 턴 -------------------------------------\n";
+            std::cout << duration;
+            std::cout << state.toString();
+        }
+
+        // --- 렌더링 ---
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        // 격자
+        for (int y = 0; y < H; y++)
+        {
+            for (int x = 0; x < W; x++)
+            {
+                int px = PAD + x * CELL;
+                int py = PAD + y * CELL;
+                DrawRectangleLines(px, py, CELL, CELL, BLACK);
+            }
+        }
+
+        // --- 렌더링 ---
+        std::string s = state.toString();
+
+        // 1) CR 제거
+        s.erase(std::remove(s.begin(), s.end(), '\r'), s.end());
+
+        // 2) 줄로 분리
+        std::stringstream ss(s);
+        std::string line;
+
+        // 첫 줄(is_first) 버림
+        std::getline(ss, line);
+
+        bool is_first = true;
+        {
+            auto pos = line.find('\t');
+            int v = 1;
+            if (pos != std::string::npos) v = std::stoi(line.substr(pos + 1));
+            is_first = (v != 0);
+        }
+        // 보드 줄 읽기
+        std::vector<std::string> rows;
+        rows.reserve(H);
+        for (int i = 0; i < H; ++i) {
+            std::getline(ss, line);
+            rows.push_back(line);
+        }
+   
+        // 3) rows[y][x] 기반으로 그리기
+        for (int y = 0; y < H; y++)
+        {
+            for (int x = 0; x < W; x++)
+            {
+                char c = rows[y][x];
+
+                int cx = PAD + x * CELL + CELL / 2;
+                int cy = PAD + y * CELL + CELL / 2;
+                if (c == 'x') DrawCircle(cx, cy, CELL * 0.35f, BLACK);
+                else if (c == 'o') DrawCircle(cx, cy, CELL * 0.35f, RED);
+            }
+        }
+        
+        // 결과 텍스트
+        if (state.isDone())
+        {
+            const char* msg = "DRAW";
+            if (state.getWinningStatus() == WinningStatus::LOSE) msg = "Previous player WIN!";
+            DrawText(msg, 10, 10, 30, BLUE);
+        }
+
+        EndDrawing();
+    }
+
+    CloseWindow();
+    return 0;
+}
