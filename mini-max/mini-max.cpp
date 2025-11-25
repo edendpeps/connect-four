@@ -14,7 +14,7 @@ using State = ConnectFourState; // 커넥트포
 static constexpr int INF = 100000000;
 static constexpr int WIN_SCORE = 100000000; // 종결 가중치(절대적으로 큼)
 static constexpr int THREE_OPEN = 1000;      // 내 3 + 빈1
-static constexpr int THREE_OPEN_BLOCK = 2000000;      // 상대 3 + 빈1 (더 크게 패널티)
+static constexpr int THREE_OPEN_BLOCK = 2000;      // 상대 3 + 빈1 (더 크게 패널티)
 static constexpr int TWO_OPEN = 50;        // 내 2 + 빈2
 static constexpr int CENTER_BONUS_PIECE = 6;         // 중앙 열 돌 1개당 보너스
 double duration;
@@ -78,7 +78,7 @@ static inline int eval(const State& s) {
 		switch (s.getWinningStatus()) {
 		case WinningStatus::LOSE:
 			// 직전에 둔 쪽이 승리 → 지금 둘 차례인 쪽은 패배
-			return -WIN_SCORE;  
+			return -WIN_SCORE;
 		case WinningStatus::WIN:
 			// 직전에 둔 쪽이 패배 → 지금 둘 차례인 쪽이 승리
 			return  WIN_SCORE;
@@ -160,29 +160,51 @@ int negamax(State state, int depth, TimeKeeper& tk) {
 }
 
 // 최선 수 선택
-int negamaxAction(const State& state, int depth, int time_limit_ms) {
+int negamaxAction(const State& state, int max_depth, int time_limit_ms)
+{
 	auto start = std::chrono::high_resolution_clock::now();
 	TimeKeeper tk(time_limit_ms);
 
-	auto acts = state.legalActions();
-	if (acts.empty()) return 0; // 방어적
+	int bestMove = -1;
+	int depth = 1;
 
-	order_actions(acts);
+	while (depth <= max_depth && !tk.isTimeOver()) {
+		auto acts = state.legalActions();
+		if (acts.empty()) break;
 
-	int bestA = acts.front();
-	int bestV = -1000000000;
+		order_actions(acts);
 
-	for (int a : acts) {
-		if (tk.isTimeOver()) break;
+		int localBestMove = acts.front();
+		int localBestV = -INF;
 
-		State child = state;
-		child.advance(a);
+		for (int a : acts) {
+			if (tk.isTimeOver()) break;
 
-		int v = -negamax(child, depth - 1, tk);
+			State child = state;
+			child.advance(a);
 
-		if (v > bestV) { bestV = v; bestA = a; }
+			int v = -negamax(child, depth - 1, tk);
+			if (v > localBestV) {
+				localBestV = v;
+				localBestMove = a;
+			}
+		}
+
+		// 이 깊이는 어느 정도 봤으니, 일단 이걸 “최신 최선 수”로 저장
+		if (!tk.isTimeOver()) {
+			bestMove = localBestMove;
+		}
+
+		depth++;
+	}
+
+	if (bestMove == -1) {
+		// 시간 시작부터 거의 0ms였던 극단 케이스 방어
+		auto acts = state.legalActions();
+		if (!acts.empty()) bestMove = acts.front();
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
-	return bestA;
+	std::cout << "depth: " << depth - 1 << "\n";
+	return bestMove;
 }

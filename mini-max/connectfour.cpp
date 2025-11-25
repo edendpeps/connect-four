@@ -17,6 +17,7 @@
 #include "minimax.hpp"
 #include "Monte_Carlo.hpp"
 #include <set>
+#include "raylib.h"
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
 static constexpr int CELL = 40;
@@ -310,6 +311,168 @@ int main()
 	}
 	bool human1p = (turn == "1p");
 	bool humanturn = human1p;
-	playGame(human1p, what_algo);
+	const int screenW = W * CELL + PAD * 2;  // W = 7
+	const int screenH = H * CELL + PAD * 2;  // H = 6
+
+	InitWindow(screenW, screenH, "Connect Four - Human vs AI");
+	SetTargetFPS(60);
+
+	ConnectFourState state;
+
+	// --- 게임 설정 ---
+	bool humanIsFirst = true;   // 사람 선공이면 true, 후공이면 false
+	bool humanTurn = humanIsFirst;   // 현재 턴이 사람인지 여부
+
+	// AI 설정
+	int minimax_depth = 6;
+	int time_limit_ms = 2000;
+	int playout_num = 100000000; // 몬테카를로용 (INF 정도)
+
+	// 어떤 알고리즘 쓸지 (true = 미니맥스, false = 몬테카를로)
+	bool useMinimax = true;
+
+	bool gameOver = false;
+	std::string resultText = "";
+
+	while (!WindowShouldClose())
+	{
+		// ----------- 입력 (사람 턴) -----------
+		if (!gameOver && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		{
+			int mx = GetMouseX() - PAD;
+			int my = GetMouseY() - PAD;
+
+			// 보드 범위 안인지 체크 (열만 중요)
+			if (mx >= 0 && my >= 0) {
+				int x = mx / CELL;  // 열 번호
+				// int y = my / CELL; // y는 커넥트포에선 안 씀
+
+				if (0 <= x && x < W) {
+					int col = x;
+
+					// 현재 둘 수 있는 열인지 확인
+					auto legal = state.legalActions();  // vector<int> 열 리스트
+					if (std::find(legal.begin(), legal.end(), col) != legal.end()) {
+						state.advance(col);   // 실제 말 떨어뜨리기
+
+						// 여기서 바로 게임 끝났는지 체크
+						if (state.isDone()) {
+							gameOver = true;
+							// state는 "다음에 둘 사람" 기준이므로
+							// 방금 둔 사람(= 인간)이 이겼으면 LOSE 로 잡힘
+							if (state.getWinningStatus() == WinningStatus::LOSE) {
+								resultText = "You WIN!";
+							}
+							else if (state.getWinningStatus() == WinningStatus::WIN) {
+								resultText = "AI WINS!";
+							}
+							else {
+								resultText = "DRAW";
+							}
+						}
+						else {
+							humanTurn = false;  // 턴 넘기기
+						}
+					}
+				}
+			}
+		}
+
+		// ----------- AI 턴 -----------
+		if (!gameOver && !humanTurn)
+		{
+			int a;
+			if (useMinimax) {
+				a = negamaxAction(state, minimax_depth, time_limit_ms);
+			}
+			else {
+				a = MontecarloAction(state, playout_num, time_limit_ms);
+			}
+
+			state.advance(a);
+
+			if (state.isDone()) {
+				gameOver = true;
+				// 방금 둔 사람이 AI 이므로
+				if (state.getWinningStatus() == WinningStatus::LOSE) {
+					resultText = "AI WINS!";
+				}
+				else if (state.getWinningStatus() == WinningStatus::WIN) {
+					resultText = "You WIN!";
+				}
+				else {
+					resultText = "DRAW";
+				}
+			}
+			else {
+				humanTurn = true;  // 다시 사람 차례
+			}
+		}
+
+		// ----------- 렌더링 -----------
+		BeginDrawing();
+		ClearBackground(RAYWHITE);
+
+		// 격자 그리기
+		for (int y = 0; y < H; y++)
+		{
+			for (int x = 0; x < W; x++)
+			{
+				int px = PAD + x * CELL;
+				int py = PAD + y * CELL;
+				DrawRectangleLines(px, py, CELL, CELL, BLACK);
+			}
+		}
+
+		// 보드 상태 문자열로 가져오기
+		std::string s = state.toString();
+		// CR 제거 (윈도우 방어)
+		s.erase(std::remove(s.begin(), s.end(), '\r'), s.end());
+
+		std::stringstream ss(s);
+		std::string line;
+
+		// 첫 줄: is_first:\t0/1 버리기
+		std::getline(ss, line);
+
+		// 이후 H줄: 실제 보드
+		std::vector<std::string> rows;
+		rows.reserve(H);
+		for (int i = 0; i < H; ++i) {
+			if (std::getline(ss, line)) {
+				rows.push_back(line);
+			}
+		}
+
+		// rows[0] = 최상단 줄, rows[H-1] = 최하단 줄
+		for (int y = 0; y < H; y++)
+		{
+			for (int x = 0; x < W; x++)
+			{
+				if (y >= (int)rows.size() || x >= (int)rows[y].size()) continue;
+
+				char c = rows[y][x];  // '.', 'x', 'o'
+
+				int cx = PAD + x * CELL + CELL / 2;
+				int cy = PAD + y * CELL + CELL / 2;
+
+				if (c == 'x')       DrawCircle(cx, cy, CELL * 0.35f, BLACK);
+				else if (c == 'o')  DrawCircle(cx, cy, CELL * 0.35f, RED);
+			}
+		}
+
+		// 상태 텍스트
+		if (!gameOver) {
+			const char* turnText = humanTurn ? "Your turn" : "AI thinking...";
+			DrawText(turnText, 10, 10, 20, DARKBLUE);
+		}
+		else {
+			DrawText(resultText.c_str(), 10, 10, 30, MAROON);
+		}
+
+		EndDrawing();
+	}
+
+	CloseWindow();
 	return 0;
 }
