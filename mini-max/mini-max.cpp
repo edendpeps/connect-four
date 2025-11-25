@@ -14,7 +14,7 @@ using State = ConnectFourState; // 커넥트포
 static constexpr int INF = 100000000;
 static constexpr int WIN_SCORE = 100000000; // 종결 가중치(절대적으로 큼)
 static constexpr int THREE_OPEN = 1000;      // 내 3 + 빈1
-static constexpr int THREE_OPEN_BLOCK = 2000;      // 상대 3 + 빈1 (더 크게 패널티)
+static constexpr int THREE_OPEN_BLOCK = 2000000;      // 상대 3 + 빈1 (더 크게 패널티)
 static constexpr int TWO_OPEN = 50;        // 내 2 + 빈2
 static constexpr int CENTER_BONUS_PIECE = 6;         // 중앙 열 돌 1개당 보너스
 double duration;

@@ -2,10 +2,12 @@
 #include <array>
 #include <vector>
 #include <sstream>
+#include "raylib.h"
 #include <utility>
 #include <random>
 #include <assert.h>
 #include <math.h>
+#include<stdio.h>
 #include <chrono>
 #include <algorithm>
 #include <iostream>
@@ -17,7 +19,10 @@
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
-
+static constexpr int CELL = 40;
+static constexpr int PAD = 20;
+std::string turn;
+std::string what_algo;
 // 시간을 관리하는 클래스
 const int time_limit = 2000;
 const int minimax_depth = 6;
@@ -166,8 +171,9 @@ int humanAction(const State& state)
 }
 
 // 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
-void playGame()
+void playGame(bool human1p, std::string what_algo)
 {
+
 	int turn_count = 0;
 	std::string monte = "MonteCarlo";
 	std::string minmax = "MiniMax";
@@ -177,82 +183,91 @@ void playGame()
 	cout << state.toString() << endl;
 	while (!state.isDone())
 	{
-		/*// 1p (사람)
+		if (human1p)
 		{
-			cout << "1p ------------------------------------" << endl;
-			int action = humanAction(state);
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
+		// 1p (사람)
 			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
+				cout << "1p ------------------------------------" << endl;
+				int action = humanAction(state);
+				cout << "action " << action << endl;
+				state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
+				cout << state.toString() << endl;
+				if (state.isDone())
 				{
-				case (WinningStatus::WIN):
-					cout << "winner: 2p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 1p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
+					switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
+					{
+					case (WinningStatus::WIN):
+						cout << "winner: 2p" << endl;
+						break;
+					case (WinningStatus::LOSE):
+						cout << "winner: 1p" << endl;
+						break;
+					default:
+						cout << "DRAW" << endl;
+						break;
+					}
 					break;
 				}
-				break;
 			}
 		}
-		*/
 
 		//1p (Ai)
+		if (what_algo == "minimax")
 		{
-			cout << minmax << " ------------------------------------" << endl;
-			int action = negamaxAction(state, minimax_depth, time_limit);
-			std::cout << duration << "ms\n";
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
+
 			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+				cout << minmax << " ------------------------------------" << endl;
+				int action = negamaxAction(state, minimax_depth, time_limit);
+				std::cout << duration << "ms\n";
+				cout << "action " << action << endl;
+				state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
+				cout << state.toString() << endl;
+				if (state.isDone())
 				{
-				case (WinningStatus::WIN):
-					cout << "winner: 1p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 2p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
+					switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+					{
+					case (WinningStatus::WIN):
+						cout << "winner: 1p" << endl;
+						break;
+					case (WinningStatus::LOSE):
+						cout << "winner: 2p" << endl;
+						break;
+					default:
+						cout << "DRAW" << endl;
+						break;
+					}
 					break;
 				}
-				break;
 			}
 		}
 		// 2p (AI)
+		if (what_algo == "montecarlo")
 		{
-
-			turn_count++;
-			cout << monte << " ------------------------------------" << endl;
-			int action = MontecarloAction(state, INF, time_limit);
-			std::cout << "Turn : " << turn_count << endl << duration << "ms\n";
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
 			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+
+				turn_count++;
+				cout << monte << " ------------------------------------" << endl;
+				int action = MontecarloAction(state, INF, time_limit);
+				std::cout << "Turn : " << turn_count << endl << duration << "ms\n";
+				cout << "action " << action << endl;
+				state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
+				cout << state.toString() << endl;
+				if (state.isDone())
 				{
-				case (WinningStatus::WIN):
-					cout << "winner: 2p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 1p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
+					switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
+					{
+					case (WinningStatus::WIN):
+						cout << "winner: 2p" << endl;
+						break;
+					case (WinningStatus::LOSE):
+						cout << "winner: 1p" << endl;
+						break;
+					default:
+						cout << "DRAW" << endl;
+						break;
+					}
 					break;
 				}
-				break;
 			}
 		}
 	}
@@ -260,6 +275,41 @@ void playGame()
 
 int main()
 {
-	playGame();
+	while (1)
+	{
+
+		std::cout << "type 1P or 2P\n";
+		std::cin >> turn;
+		ConnectFourState state;
+		std::transform(turn.begin(), turn.end(), turn.begin(),
+			[](unsigned char c) { return std::tolower(c); });
+		if (turn == "1p" || turn == "2p")
+		{
+			break;
+		}
+		else
+		{
+			std::cout << "wrong turn input.\n";
+		}
+	}
+	while (1)
+	{
+		std::cout << "select MiniMax or MonteCarlo\n";
+		std::cin >> what_algo;
+		ConnectFourState state;
+		std::transform(what_algo.begin(), what_algo.end(), what_algo.begin(),
+			[](unsigned char c) { return std::tolower(c); });
+		if (what_algo == "minimax" || what_algo == "montecarlo")
+		{
+			break;
+		}
+		else
+		{
+			std::cout << "wrong algorithm input.\n";
+		}
+	}
+	bool human1p = (turn == "1p");
+	bool humanturn = human1p;
+	playGame(human1p, what_algo);
 	return 0;
 }
