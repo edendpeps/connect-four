@@ -52,6 +52,7 @@ int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 	auto legal_actions = state.legalActions();
 	auto values = std::vector<double>(legal_actions.size());
 	auto cnts = std::vector<double>(legal_actions.size());
+	int playnum = 0;
 	for (int cnt = 0; cnt < playout_num; cnt++)
 	{
 		if (tk.isTimeOver()) break;
@@ -60,6 +61,7 @@ int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 		next_state.advance(legal_actions[index]);
 		values[index] += 1.0 - playout(next_state);
 		++cnts[index];
+		playnum = cnts[index];
 
 	}
 	int best_action_index = -1;
@@ -80,5 +82,6 @@ int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
+	std::cout <<"playout_num: " << playnum << "\n";
 	return legal_actions[best_action_index];
 }
