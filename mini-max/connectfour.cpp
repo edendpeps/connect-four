@@ -20,8 +20,8 @@
 #include "raylib.h"
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
-static constexpr int CELL = 40;
-static constexpr int PAD = 20;
+static constexpr int CELL = 80;
+static constexpr int PAD = 80;
 std::string turn;
 std::string what_algo;
 // 시간을 관리하는 클래스
@@ -186,7 +186,7 @@ void playGame(bool human1p, std::string what_algo)
 	{
 		if (human1p)
 		{
-		// 1p (사람)
+			// 1p (사람)
 			{
 				cout << "1p ------------------------------------" << endl;
 				int action = humanAction(state);
@@ -324,7 +324,7 @@ int main()
 	bool humanTurn = humanIsFirst;   // 현재 턴이 사람인지 여부
 
 	// AI 설정
-	int minimax_depth = 6;
+	int minimax_depth = 7;
 	int time_limit_ms = 2000;
 	int playout_num = 100000000; // 몬테카를로용 (INF 정도)
 
@@ -379,7 +379,7 @@ int main()
 		}
 
 		// ----------- AI 턴 -----------
-		if (!gameOver && !humanTurn)
+		if (!gameOver && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		{
 			int a;
 			if (useMinimax) {
