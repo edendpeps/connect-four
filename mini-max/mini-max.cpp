@@ -234,123 +234,7 @@ static inline std::vector<int> genCandidates(const std::vector<std::string>& row
     return acts;
 }
 
-// -------------------------
-// threat 기반 열린3 정의
-//  - "열린3" = 지금 한 수 두면
-//    다음 턴에 내가 열린4를 만들 수 있는 형태
-// -------------------------
-static inline bool canCreateOpenFourNext_Local(
-    const std::vector<std::string>& rows,
-    int lastAction,
-    char stone)
-{
-    int y0 = lastAction / W;
-    int x0 = lastAction % W;
 
-    // lastAction을 포함하는 라인에서만 열린4 가능성 체크
-    for (int d = 0; d < 4; ++d) {
-        int dy = DY[d], dx = DX[d];
-
-        // lastAction 주변으로 길이 4 윈도우를 밀며 검사
-        for (int shift = -3; shift <= 0; ++shift) {
-            int sy = y0 + shift * dy;
-            int sx = x0 + shift * dx;
-            int ey = sy + dy * 3;
-            int ex = sx + dx * 3;
-            if (!inside(sy, sx) || !inside(ey, ex)) continue;
-
-            // 4칸 중 lastAction 포함 확인
-            bool includeLast = false;
-            bool four = true;
-            for (int k = 0; k < 4; ++k) {
-                int ny = sy + dy*k, nx = sx + dx*k;
-                if (ny == y0 && nx == x0) includeLast = true;
-                if (rows[ny][nx] != stone) { four = false; break; }
-            }
-            if (!four || !includeLast) continue;
-
-            int by = sy - dy, bx = sx - dx;
-            int ny = ey + dy, nx = ex + dx;
-
-            bool openL = inside(by, bx) && rows[by][bx] == '.';
-            bool openR = inside(ny, nx) && rows[ny][nx] == '.';
-
-            if (openL && openR) return true; // lastAction 포함 열린4
-        }
-    }
-    return false;
-}
-
-static inline bool moveCreatesOpenThree(
-    const std::vector<std::string>& rows,
-    int action, char stone)
-{
-    auto nxt = placeStone(rows, action, stone);
-
-    // 즉승/열린4면 열린3보다 더 센 위협
-    if (hasFive(nxt, stone) || hasOpenFour(nxt, stone))
-        return false;
-
-    // ★ 로컬 기준으로 다음 열린4 가능하면 열린3
-    return canCreateOpenFourNext_Local(nxt, action, stone);
-}
-// -------------------------
-// 강제수 탐색
-// -------------------------
-static inline int findMyImmediateWin(const State& st) {
-    std::vector<std::string> rows;
-    normalizedRows(st, rows);
-
-    auto cand = genCandidates(rows);
-    for (int a : cand) {
-        auto nxt = placeStone(rows, a, 'x');
-        if (hasFive(nxt, 'x')) return a;
-    }
-    return -1;
-}
-
-static inline int findBlockOpponentImmediateWin(const State& st) {
-    std::vector<std::string> rows;
-    normalizedRows(st, rows);
-
-    auto cand = genCandidates(rows);
-    for (int a : cand) {
-        auto nxt = placeStone(rows, a, 'o'); // 상대가 여기에 둔다고 가정
-        if (hasFive(nxt, 'o')) return a;     // 그 수를 선점해서 막음
-    }
-    return -1;
-}
-
-static inline int findBlockOpponentOpenFour(const State& st) {
-    std::vector<std::string> rows;
-    normalizedRows(st, rows);
-
-    if (!hasOpenFour(rows, 'o')) return -1;
-
-    auto ends = openFourEnds(rows, 'o');
-    if (!ends.empty()) return ends[0]; // 아무거나 하나라도 막는 게 최선 발악
-    return -1;
-}
-
-static inline int findBlockOpponentOpenThree(const State& st) {
-    std::vector<std::string> rows;
-    normalizedRows(st, rows);
-
-    auto cand = genCandidates(rows);
-    std::vector<int> dangerous;
-
-    for (int a : cand) {
-        if (moveCreatesOpenThree(rows, a, 'o')) {
-            dangerous.push_back(a);
-        }
-    }
-
-    if (dangerous.empty()) return -1;
-
-    // ★ dangerous도 중앙 우선 정렬해라
-    order_actions(dangerous);
-    return dangerous[0];
-}
 
 // -------------------------
 // eval (패턴식 유지)
@@ -482,53 +366,54 @@ int negamax(State state, int depth, TimeKeeper& tk, int ply_from_root)
     return best;
 }
 
-int negamaxAction(const State& state, int depth, int time_limit_ms)
+int negamaxAction(const State& state, int max_depth, int time_limit_ms)
 {
-    nodes = 0;
-    max_reached = 0;
-    // -------- 강제수 우선 --------
-    int forced;
-
-    // 1) 내가 지금 이기는 수
-    forced = findMyImmediateWin(state);
-    if (forced != -1) return forced;
-
-    // 2) 상대가 지금 이기는 수 막기
-    forced = findBlockOpponentImmediateWin(state);
-    if (forced != -1) return forced;
-
-    // 3) 상대 열린4(.oooo.) 있으면 양끝 막기 (강제패지만 최선 발악)
-    forced = findBlockOpponentOpenFour(state);
-    if (forced != -1) return forced;
-
-    // 4) 상대가 한 수로 열린3 만들 수 있으면 그 시작점 차단
-    forced = findBlockOpponentOpenThree(state);
-    if (forced != -1) return forced;
-
     // -------- 여기부터 일반 네가맥스 --------
     auto start = std::chrono::high_resolution_clock::now();
     TimeKeeper tk(time_limit_ms);
 
-    auto acts = state.legalActions();
-    if (acts.empty()) return 0;
+    int bestMove = -1;
+    int depth = 1;
 
-    order_actions(acts);
+    while (depth <= max_depth && !tk.isTimeOver()) {
+        auto acts = state.legalActions();
+        if (acts.empty()) break;
 
-    int bestA = acts.front();
-    int bestV = -INF;
+        order_actions(acts);
 
-    for (int a : acts) {
-        if (tk.isTimeOver()) break;
+        int localBestMove = acts.front();
+        int localBestV = -INF;
 
-        State child = state;
-        child.advance(a);
+        for (int a : acts) {
+            if (tk.isTimeOver()) break;
 
-        int v = -negamax(child, depth - 1, tk, 1);
-        if (v > bestV) { bestV = v; bestA = a; }
+            State child = state;
+            child.advance(a);
+
+            int v = -negamax(child, depth - 1, tk,1 );
+            if (v > localBestV) {
+                localBestV = v;
+                localBestMove = a;
+            }
+        }
+
+        // 이 깊이는 어느 정도 봤으니, 일단 이걸 “최신 최선 수”로 저장
+        if (!tk.isTimeOver()) {
+            bestMove = localBestMove;
+        }
+
+        depth++;
     }
 
+    if (bestMove == -1) {
+        // 시간 시작부터 거의 0ms였던 극단 케이스 방어
+        auto acts = state.legalActions();
+        if (!acts.empty()) bestMove = acts.front();
+    }
     auto end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "\ndepth:" << max_reached << "\n";
-    return bestA;
+    std::cout << "depth: " << depth - 1 << "\n";
+    std::cout << "duration: " << duration << "\n";
+    return bestMove;
+
 }
