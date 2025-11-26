@@ -53,7 +53,7 @@ int main()
         }
 
         // --- AI 턴 ---
-        if (!state.isDone() && !humanTurn)
+        if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
 
             // 여기서 AI 골라서 쓰면 됨.
@@ -65,7 +65,6 @@ int main()
             //2) MonteCarlo 쓰고 싶으면 위 줄 대신 이거:
            //int a = MontecarloAction(state, playout_num, time_limit);
             
-            state.advance(a);
             humanTurn = true;
             std::cout << "------------------------------------- AI 턴 -------------------------------------\n";
             std::cout << duration;
