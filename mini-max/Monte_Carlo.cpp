@@ -82,6 +82,7 @@ int MontecarloAction(const State& state, int playout_num, int time_limit_ms)
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
+	std::cout << "----------------------------------montecarlo----------------------------------\n";
 	std::cout << "playout_num: " << playnum << "\n";
 	std::cout << "duration: " << duration << "\n";
 	return legal_actions[best_action_index];

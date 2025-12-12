@@ -34,7 +34,6 @@ ConnectFourState::ConnectFourState() {}
 bool ConnectFourState::isDone() const {
 	return winning_status_ != WinningStatus::NONE;
 }
-
 // helper: (y,x)에서 (dy,dx) 방향으로 내 돌 연속 길이
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	int cnt = 0;
@@ -480,5 +479,4 @@ int main()
 	}
 
 	CloseWindow();
-	return 0;
 }

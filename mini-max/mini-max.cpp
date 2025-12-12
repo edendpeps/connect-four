@@ -205,6 +205,8 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms)
 	}
 	auto end = std::chrono::high_resolution_clock::now();
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
+
+	std::cout << "----------------------------------minimax----------------------------------\n" << depth - 1 << "\n";
 	std::cout << "depth: " << depth - 1 << "\n";
 	std::cout << "duration: " << duration << "\n";
 	return bestMove;
