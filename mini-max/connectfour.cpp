@@ -20,14 +20,16 @@
 #include "raylib.h"
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
-bool mini_first = true;
+bool mini_turn = false;
 static constexpr int CELL = 80;
 static constexpr int PAD = 80;
 std::string turn;
 std::string what_algo;
 // 시간을 관리하는 클래스
-const int time_limit = 2000;
-const int minimax_depth = 6;
+int minimax_depth = 10000;
+int time_limit_ms = 3000;
+int playout_num = 100000000; // 몬테카를로용 (INF 정도)
+
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
 
@@ -213,12 +215,11 @@ void playGame(bool human1p, std::string what_algo)
 		//}
 
 		//1p (Ai)
-		if (mini_first)
+		if (mini_turn)
 		{
-
 			{
 				cout << minmax << " ------------------------------------" << endl;
-				int action = negamaxAction(state, minimax_depth, time_limit);
+				int action = negamaxAction(state, minimax_depth, time_limit_ms);
 				std::cout << duration << "ms\n";
 				cout << "action " << action << endl;
 				state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
@@ -242,12 +243,12 @@ void playGame(bool human1p, std::string what_algo)
 			}
 		}
 		// 2p (AI)
-		if (mini_first)
+		if (!mini_turn)
 		{
 			{
 				turn_count++;
 				cout << monte << " ------------------------------------" << endl;
-				int action = MontecarloAction(state, INF, time_limit);
+				int action = MontecarloAction(state, INF, time_limit_ms);
 				std::cout << "Turn : " << turn_count << endl << duration << "ms\n";
 				cout << "action " << action << endl;
 				state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
@@ -308,11 +309,6 @@ int main()
 	bool humanIsFirst = false;   // 사람 선공이면 true, 후공이면 false
 	bool humanTurn = humanIsFirst;   // 현재 턴이 사람인지 여부
 
-	// AI 설정
-	int minimax_depth = 100;
-	int time_limit_ms = 2000;
-	int playout_num = 100000000; // 몬테카를로용 (INF 정도)
-
 	// 어떤 알고리즘 쓸지 (true = 미니맥스, false = 몬테카를로)
 	bool useMinimax = true;
 
@@ -362,7 +358,7 @@ int main()
 		//		}
 		//	}
 		//}
-		if (!gameOver && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		if (!gameOver && mini_turn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		{
 			int a;
 			a = negamaxAction(state, minimax_depth, time_limit_ms);
@@ -383,12 +379,12 @@ int main()
 				}
 			}
 			else {
-				humanTurn = false;  // 다시 사람 차례
+				mini_turn = false;  // 다시 사람 차례
 			}
 		}
 
 		// ----------- AI 턴 -----------
-		if (!gameOver && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		if (!gameOver && !mini_turn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		{
 			int a;
 			a = MontecarloAction(state, playout_num, time_limit_ms);
@@ -410,7 +406,7 @@ int main()
 				}
 			}
 			else {
-				humanTurn = false;  // 다시 사람 차례
+				mini_turn = true;  // 다시 사람 차례
 			}
 		}
 
