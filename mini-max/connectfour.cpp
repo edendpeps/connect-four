@@ -20,6 +20,7 @@
 #include "raylib.h"
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
+bool mini_first = true;
 static constexpr int CELL = 80;
 static constexpr int PAD = 80;
 std::string turn;
@@ -141,35 +142,35 @@ using StringAIPair = std::pair<std::string, AIFunction>;
 
 
 // 사람 입력(1P): 열 번호를 입력받아 검증
-int humanAction(const State& state)
-{
-	using std::cout;
-	using std::cin;
-	using std::endl;
-
-	auto legal = state.legalActions();
-	std::set<int> ok(legal.begin(), legal.end());
-
-	int col;
-	while (true)
-	{
-		cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
-		if (!(cin >> col))
-		{
-			cin.clear();
-			cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			cout << "숫자를 입력하세요.\n";
-			continue;
-		}
-		if (0 <= col && col < W && ok.count(col))
-		{
-			return col;
-		}
-		cout << "그 열은 둘 수 없습니다. 가능한 열: ";
-		for (auto c : legal) cout << c << " ";
-		cout << endl;
-	}
-}
+//int humanAction(const State& state)
+//{
+//	using std::cout;
+//	using std::cin;
+//	using std::endl;
+//
+//	auto legal = state.legalActions();
+//	std::set<int> ok(legal.begin(), legal.end());
+//
+//	int col;
+//	while (true)
+//	{
+//		cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
+//		if (!(cin >> col))
+//		{
+//			cin.clear();
+//			cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+//			cout << "숫자를 입력하세요.\n";
+//			continue;
+//		}
+//		if (0 <= col && col < W && ok.count(col))
+//		{
+//			return col;
+//		}
+//		cout << "그 열은 둘 수 없습니다. 가능한 열: ";
+//		for (auto c : legal) cout << c << " ";
+//		cout << endl;
+//	}
+//}
 
 // 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
 void playGame(bool human1p, std::string what_algo)
@@ -184,36 +185,36 @@ void playGame(bool human1p, std::string what_algo)
 	cout << state.toString() << endl;
 	while (!state.isDone())
 	{
-		if (human1p)
-		{
-			// 1p (사람)
-			{
-				cout << "1p ------------------------------------" << endl;
-				int action = humanAction(state);
-				cout << "action " << action << endl;
-				state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
-				cout << state.toString() << endl;
-				if (state.isDone())
-				{
-					switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
-					{
-					case (WinningStatus::WIN):
-						cout << "winner: 2p" << endl;
-						break;
-					case (WinningStatus::LOSE):
-						cout << "winner: 1p" << endl;
-						break;
-					default:
-						cout << "DRAW" << endl;
-						break;
-					}
-					break;
-				}
-			}
-		}
+		//if (human1p)
+		//{
+		//	// 1p (사람)
+		//	{
+		//		cout << "1p ------------------------------------" << endl;
+		//		int action = humanAction(state);
+		//		cout << "action " << action << endl;
+		//		state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
+		//		cout << state.toString() << endl;
+		//		if (state.isDone())
+		//		{
+		//			switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
+		//			{
+		//			case (WinningStatus::WIN):
+		//				cout << "winner: 2p" << endl;
+		//				break;
+		//			case (WinningStatus::LOSE):
+		//				cout << "winner: 1p" << endl;
+		//				break;
+		//			default:
+		//				cout << "DRAW" << endl;
+		//				break;
+		//			}
+		//			break;
+		//		}
+		//	}
+		//}
 
 		//1p (Ai)
-		if (what_algo == "minimax")
+		if (mini_first)
 		{
 
 			{
@@ -242,10 +243,9 @@ void playGame(bool human1p, std::string what_algo)
 			}
 		}
 		// 2p (AI)
-		if (what_algo == "montecarlo")
+		if (mini_first)
 		{
 			{
-
 				turn_count++;
 				cout << monte << " ------------------------------------" << endl;
 				int action = MontecarloAction(state, INF, time_limit);
@@ -276,7 +276,7 @@ void playGame(bool human1p, std::string what_algo)
 
 int main()
 {
-	while (1)
+	/*while (1)
 	{
 
 		std::cout << "type 1P or 2P\n";
@@ -293,24 +293,10 @@ int main()
 			std::cout << "wrong turn input.\n";
 		}
 	}
-	while (1)
-	{
-		std::cout << "select MiniMax or MonteCarlo\n";
-		std::cin >> what_algo;
-		ConnectFourState state;
-		std::transform(what_algo.begin(), what_algo.end(), what_algo.begin(),
-			[](unsigned char c) { return std::tolower(c); });
-		if (what_algo == "minimax" || what_algo == "montecarlo")
-		{
-			break;
-		}
-		else
-		{
-			std::cout << "wrong algorithm input.\n";
-		}
-	}
+	
 	bool human1p = (turn == "1p");
 	bool humanturn = human1p;
+	*/
 	const int screenW = W * CELL + PAD * 2;  // W = 7
 	const int screenH = H * CELL + PAD * 2;  // H = 6
 
@@ -320,11 +306,11 @@ int main()
 	ConnectFourState state;
 
 	// --- 게임 설정 ---
-	bool humanIsFirst = true;   // 사람 선공이면 true, 후공이면 false
+	bool humanIsFirst = false;   // 사람 선공이면 true, 후공이면 false
 	bool humanTurn = humanIsFirst;   // 현재 턴이 사람인지 여부
 
 	// AI 설정
-	int minimax_depth = 7;
+	int minimax_depth = 100;
 	int time_limit_ms = 2000;
 	int playout_num = 100000000; // 몬테카를로용 (INF 정도)
 
@@ -336,45 +322,69 @@ int main()
 
 	while (!WindowShouldClose())
 	{
-		// ----------- 입력 (사람 턴) -----------
-		if (!gameOver && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		//// ----------- 입력 (사람 턴) -----------
+		//if (!gameOver && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+		//{
+		//	int mx = GetMouseX() - PAD;
+		//	int my = GetMouseY() - PAD;
+
+		//	// 보드 범위 안인지 체크 (열만 중요)
+		//	if (mx >= 0 && my >= 0) {
+		//		int x = mx / CELL;  // 열 번호
+		//		// int y = my / CELL; // y는 커넥트포에선 안 씀
+
+		//		if (0 <= x && x < W) {
+		//			int col = x;
+
+		//			// 현재 둘 수 있는 열인지 확인
+		//			auto legal = state.legalActions();  // vector<int> 열 리스트
+		//			if (std::find(legal.begin(), legal.end(), col) != legal.end()) {
+		//				state.advance(col);   // 실제 말 떨어뜨리기
+
+		//				// 여기서 바로 게임 끝났는지 체크
+		//				if (state.isDone()) {
+		//					gameOver = true;
+		//					// state는 "다음에 둘 사람" 기준이므로
+		//					// 방금 둔 사람(= 인간)이 이겼으면 LOSE 로 잡힘
+		//					if (state.getWinningStatus() == WinningStatus::LOSE) {
+		//						resultText = "You WIN!";
+		//					}
+		//					else if (state.getWinningStatus() == WinningStatus::WIN) {
+		//						resultText = "AI WINS!";
+		//					}
+		//					else {
+		//						resultText = "DRAW";
+		//					}
+		//				}
+		//				else {
+		//					humanTurn = false;  // 턴 넘기기
+		//				}
+		//			}
+		//		}
+		//	}
+		//}
+		if (!gameOver && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		{
-			int mx = GetMouseX() - PAD;
-			int my = GetMouseY() - PAD;
+			int a;
+			a = negamaxAction(state, minimax_depth, time_limit_ms);
+			
+			state.advance(a);
 
-			// 보드 범위 안인지 체크 (열만 중요)
-			if (mx >= 0 && my >= 0) {
-				int x = mx / CELL;  // 열 번호
-				// int y = my / CELL; // y는 커넥트포에선 안 씀
-
-				if (0 <= x && x < W) {
-					int col = x;
-
-					// 현재 둘 수 있는 열인지 확인
-					auto legal = state.legalActions();  // vector<int> 열 리스트
-					if (std::find(legal.begin(), legal.end(), col) != legal.end()) {
-						state.advance(col);   // 실제 말 떨어뜨리기
-
-						// 여기서 바로 게임 끝났는지 체크
-						if (state.isDone()) {
-							gameOver = true;
-							// state는 "다음에 둘 사람" 기준이므로
-							// 방금 둔 사람(= 인간)이 이겼으면 LOSE 로 잡힘
-							if (state.getWinningStatus() == WinningStatus::LOSE) {
-								resultText = "You WIN!";
-							}
-							else if (state.getWinningStatus() == WinningStatus::WIN) {
-								resultText = "AI WINS!";
-							}
-							else {
-								resultText = "DRAW";
-							}
-						}
-						else {
-							humanTurn = false;  // 턴 넘기기
-						}
-					}
+			if (state.isDone()) {
+				gameOver = true;
+				// 방금 둔 사람이 AI 이므로
+				if (state.getWinningStatus() == WinningStatus::LOSE) {
+					resultText = "Montecarlo WINS!";
 				}
+				else if (state.getWinningStatus() == WinningStatus::WIN) {
+					resultText = "Minimax WIN!";
+				}
+				else {
+					resultText = "DRAW";
+				}
+			}
+			else {
+				humanTurn = false;  // 다시 사람 차례
 			}
 		}
 
@@ -382,12 +392,8 @@ int main()
 		if (!gameOver && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
 		{
 			int a;
-			if (useMinimax) {
-				a = negamaxAction(state, minimax_depth, time_limit_ms);
-			}
-			else {
-				a = MontecarloAction(state, playout_num, time_limit_ms);
-			}
+			a = MontecarloAction(state, playout_num, time_limit_ms);
+			
 
 			state.advance(a);
 
@@ -395,17 +401,17 @@ int main()
 				gameOver = true;
 				// 방금 둔 사람이 AI 이므로
 				if (state.getWinningStatus() == WinningStatus::LOSE) {
-					resultText = "AI WINS!";
+					resultText = "Minimax WINS!";
 				}
 				else if (state.getWinningStatus() == WinningStatus::WIN) {
-					resultText = "You WIN!";
+					resultText = "Montecarlo WIN!";
 				}
 				else {
 					resultText = "DRAW";
 				}
 			}
 			else {
-				humanTurn = true;  // 다시 사람 차례
+				humanTurn = false;  // 다시 사람 차례
 			}
 		}
 
