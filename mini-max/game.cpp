@@ -21,7 +21,7 @@ int main()
 
     ConnectFourState state;
 
-    bool humanTurn = true; // 사람 선공(필요하면 바꿔)
+    bool humanTurn = false; // 사람 선공(필요하면 바꿔)
     int minimax_depth = 30;
     int time_limit = 3000;   // ms
     int playout_num = INF;
@@ -29,7 +29,7 @@ int main()
     while (!WindowShouldClose())
     {
         // --- 입력(사람) ---
-        if (!state.isDone() && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+       /* if (!state.isDone() && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             int mx = GetMouseX() - PAD;
             int my = GetMouseY() - PAD;
@@ -50,7 +50,7 @@ int main()
             }
             std::cout << "------------------------------------- 내 턴 -------------------------------------\n";
             std::cout << state.toString();
-        }
+        }*/
 
         // --- AI 턴 ---
         if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
@@ -65,12 +65,25 @@ int main()
             //2) MonteCarlo 쓰고 싶으면 위 줄 대신 이거:
            //int a = MontecarloAction(state, playout_num, time_limit);
             
-            humanTurn = true;
-            std::cout << "------------------------------------- AI 턴 -------------------------------------\n";
+            std::cout << "------------------------------------- minimax 턴 -------------------------------------\n";
             std::cout << duration;
             std::cout << state.toString();
         }
+        if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        {
 
+            // 여기서 AI 골라서 쓰면 됨.
+            //1) negamax
+            //int a = negamaxAction(state, minimax_depth, time_limit);
+           int b = MontecarloAction(state, playout_num, time_limit);
+            std::cout << "AI action = " << b
+                << " (y=" << b / W << ", x=" << b % W << ")\n";
+            state.advance(b);
+
+            std::cout << "------------------------------------- montecarlo 턴 -------------------------------------\n";
+            std::cout << duration;
+            std::cout << state.toString();
+        }
         // --- 렌더링 ---
         BeginDrawing();
         ClearBackground(RAYWHITE);
