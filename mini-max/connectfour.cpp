@@ -17,10 +17,13 @@
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
-
+int monte_win = 0;
+int minimax_win = 0;
+int game_draw = 0;
+int game_limit = 100;
 // 시간을 관리하는 클래스
-const int time_limit = 2000;
-const int minimax_depth = 1000;
+const int time_limit = 500;
+const int minimax_depth = 1000000;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
 
@@ -166,100 +169,73 @@ int humanAction(const State& state)
 }
 
 // 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
-void playGame()
+	bool last_move_by_minimax = false; // 직전에 누가 뒀는지
+void playGame(bool first_is_minimax)
 {
 	int turn_count = 0;
-	std::string monte = "MonteCarlo";
-	std::string minmax = "MiniMax";
-	using std::cout;
-	using std::endl;
+
+
 	auto state = State();
-	cout << state.toString() << endl;
+	std::cout << state.toString() << "\n";
+
 	while (!state.isDone())
 	{
-		//// 1p (사람)
-		//{
-		//	cout << "1p ------------------------------------" << endl;
-		//	int action = humanAction(state);
-		//	cout << "action " << action << endl;
-		//	state.advance(action); // 여기서 시점이 바뀌어서 2p 시점이 된다.
-		//	cout << state.toString() << endl;
-		//	if (state.isDone())
-		//	{
-		//		switch (state.getWinningStatus()) // 여기서 WIN은 2p 승
-		//		{
-		//		case (WinningStatus::WIN):
-		//			cout << "winner: 2p" << endl;
-		//			break;
-		//		case (WinningStatus::LOSE):
-		//			cout << "winner: 1p" << endl;
-		//			break;
-		//		default:
-		//			cout << "DRAW" << endl;
-		//			break;
-		//		}
-		//		break;
-		//	}
-		//}
-		//
+		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
-		//1p (Ai)
+		if (minimax_turn)
 		{
-			cout << minmax << " ------------------------------------" << endl;
+			std::cout << "MiniMax ------------------------------------\n";
 			int action = negamaxAction(state, minimax_depth, time_limit);
-			std::cout << duration << "ms\n";
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
-			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
-				{
-				case (WinningStatus::WIN):
-					cout << "winner: 1p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 2p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
-					break;
-				}
-				break;
-			}
+			std::cout << "Turn : " << turn_count << "\n";
+			std::cout << "action " << action << "\n";
+			state.advance(action);
 		}
-		 //2p (AI)
+		else
 		{
-
-			turn_count++;
-			cout << monte << " ------------------------------------" << endl;
+			std::cout << "MonteCarlo ---------------------------------\n";
 			int action = MontecarloAction(state, INF, time_limit);
-			std::cout << "Turn : " << turn_count << endl << duration << "ms\n";
-			cout << "action " << action << endl;
-			state.advance(action); // 여기서 시점이 바뀌어서 1p 시점이 된다.
-			cout << state.toString() << endl;
-			if (state.isDone())
-			{
-				switch (state.getWinningStatus()) // 여기서 WIN은 1p 승
-				{
-				case (WinningStatus::WIN):
-					cout << "winner: 2p" << endl;
-					break;
-				case (WinningStatus::LOSE):
-					cout << "winner: 1p" << endl;
-					break;
-				default:
-					cout << "DRAW" << endl;
-					break;
-				}
-				break;
-			}
+			std::cout << "Turn : " << turn_count << "\n";
+			std::cout << "action " << action << "\n";
+			state.advance(action);
 		}
+
+		last_move_by_minimax = minimax_turn;
+		std::cout << state.toString() << "\n";
+		turn_count++;
+	}
+
+	if (state.getWinningStatus() == WinningStatus::DRAW)
+	{
+		std::cout << "DRAW\n";
+		game_draw++;
+	}
+	else if (state.getWinningStatus() == WinningStatus::LOSE)
+	{
+		// 직전에 둔 사람이 이김
+		std::cout << "winner: " << (last_move_by_minimax ? "MiniMax" : "MonteCarlo") << "\n";
+		if (last_move_by_minimax) minimax_win++;
+		else monte_win++;
+	}
+	else if (state.getWinningStatus() == WinningStatus::WIN)
+	{
+		// 직전에 둔 사람이 짐 -> 상대가 이김
+		std::cout << "winner: " << (last_move_by_minimax ? "MonteCarlo" : "MiniMax") << "\n";
+		if (last_move_by_minimax) monte_win++;
+		else minimax_win++;
+
 	}
 }
 
 int main()
 {
-	playGame();
+	for (int i = 0; i < game_limit; i++) {
+		std::cout << "game_count: " << i << "\n";
+		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
+		playGame(first_is_minimax);
+	}
+	std::cout << "MonteCarlo_win: " << monte_win<<"\n";
+	std::cout << "MiniMax_win: " << minimax_win<<"\n";
+	std::cout << "Draw: " << game_draw;;
+
 	return 0;
 }
