@@ -23,7 +23,7 @@ int minimax_win = 0;
 int game_draw = 0;
 int game_limit = 200;
 // 시간을 관리하는 클래스
-const int time_limit = 3000;
+const int time_limit = 600;
 const int minimax_depth = 1000000;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
