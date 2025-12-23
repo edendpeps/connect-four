@@ -16,20 +16,20 @@ int main()
     const int screenW = W * CELL + PAD * 2;
     const int screenH = H * CELL + PAD * 2;
 
-    InitWindow(screenW, screenH, "Gomoku (using your C++ AI)");
+    InitWindow(screenW, screenH, "Gomoku");
     SetTargetFPS(60);
 
     ConnectFourState state;
 
-    bool humanTurn = false; // 사람 선공(필요하면 바꿔)
-    int minimax_depth = 30;
+    bool humanTurn = true; // 사람 선공(필요하면 바꿔)
+    int minimax_depth = 1000;
     int time_limit = 3000;   // ms
     int playout_num = INF;
 
     while (!WindowShouldClose())
     {
         // --- 입력(사람) ---
-       /* if (!state.isDone() && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        if (!state.isDone() && humanTurn && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
         {
             int mx = GetMouseX() - PAD;
             int my = GetMouseY() - PAD;
@@ -50,7 +50,7 @@ int main()
             }
             std::cout << "------------------------------------- 내 턴 -------------------------------------\n";
             std::cout << state.toString();
-        }*/
+        }
 
         // --- AI 턴 ---
         if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
@@ -68,22 +68,23 @@ int main()
             std::cout << "------------------------------------- minimax 턴 -------------------------------------\n";
             std::cout << duration;
             std::cout << state.toString();
+            humanTurn = true;
         }
-        if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-        {
+        //if (!state.isDone() && !humanTurn && !IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+        //{
 
-            // 여기서 AI 골라서 쓰면 됨.
-            //1) negamax
-            //int a = negamaxAction(state, minimax_depth, time_limit);
-           int b = MontecarloAction(state, playout_num, time_limit);
-            std::cout << "AI action = " << b
-                << " (y=" << b / W << ", x=" << b % W << ")\n";
-            state.advance(b);
+        //    // 여기서 AI 골라서 쓰면 됨.
+        //    //1) negamax
+        //    //int a = negamaxAction(state, minimax_depth, time_limit);
+        //   int b = MontecarloAction(state, playout_num, time_limit);
+        //    std::cout << "AI action = " << b
+        //        << " (y=" << b / W << ", x=" << b % W << ")\n";
+        //    state.advance(b);
 
-            std::cout << "------------------------------------- montecarlo 턴 -------------------------------------\n";
-            std::cout << duration;
-            std::cout << state.toString();
-        }
+        //    std::cout << "------------------------------------- montecarlo 턴 -------------------------------------\n";
+        //    std::cout << duration;
+        //    std::cout << state.toString();
+        //}
         // --- 렌더링 ---
         BeginDrawing();
         ClearBackground(RAYWHITE);

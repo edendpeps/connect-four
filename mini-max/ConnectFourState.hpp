@@ -4,8 +4,8 @@
 #include <chrono>
 
 // 보드 크기 (여기 한 군데만 정의하고, 다른 .cpp들에서는 중복 정의하지 않기)
-constexpr int H = 9;
-constexpr int W = 9;
+constexpr int H = 15;
+constexpr int W = 15;
 constexpr int WIN_LEN = 5;
 
 enum class WinningStatus {
