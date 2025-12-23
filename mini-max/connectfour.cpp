@@ -17,12 +17,13 @@
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
+
 int monte_win = 0;
 int minimax_win = 0;
 int game_draw = 0;
-int game_limit = 100;
+int game_limit = 200;
 // 시간을 관리하는 클래스
-const int time_limit = 500;
+const int time_limit = 3000;
 const int minimax_depth = 1000000;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
@@ -150,12 +151,12 @@ int humanAction(const State& state)
 	int col;
 	while (true)
 	{
-		cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
+		//cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
 		if (!(cin >> col))
 		{
 			cin.clear();
 			cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			cout << "숫자를 입력하세요.\n";
+			//cout << "숫자를 입력하세요.\n";
 			continue;
 		}
 		if (0 <= col && col < W && ok.count(col))
@@ -176,7 +177,7 @@ void playGame(bool first_is_minimax)
 
 
 	auto state = State();
-	std::cout << state.toString() << "\n";
+	//std::cout << state.toString() << "\n";
 
 	while (!state.isDone())
 	{
@@ -184,23 +185,23 @@ void playGame(bool first_is_minimax)
 
 		if (minimax_turn)
 		{
-			std::cout << "MiniMax ------------------------------------\n";
+			//std::cout << "MiniMax ------------------------------------\n";
 			int action = negamaxAction(state, minimax_depth, time_limit);
-			std::cout << "Turn : " << turn_count << "\n";
-			std::cout << "action " << action << "\n";
+			//std::cout << "Turn : " << turn_count << "\n";
+			//std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 		else
 		{
-			std::cout << "MonteCarlo ---------------------------------\n";
+			//std::cout << "MonteCarlo ---------------------------------\n";
 			int action = MontecarloAction(state, INF, time_limit);
-			std::cout << "Turn : " << turn_count << "\n";
-			std::cout << "action " << action << "\n";
+			//std::cout << "Turn : " << turn_count << "\n";
+			//std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 
 		last_move_by_minimax = minimax_turn;
-		std::cout << state.toString() << "\n";
+		//std::cout << state.toString() << "\n";
 		turn_count++;
 	}
 
@@ -222,14 +223,14 @@ void playGame(bool first_is_minimax)
 		std::cout << "winner: " << (last_move_by_minimax ? "MonteCarlo" : "MiniMax") << "\n";
 		if (last_move_by_minimax) monte_win++;
 		else minimax_win++;
-
+		 
 	}
 }
 
 int main()
 {
 	for (int i = 0; i < game_limit; i++) {
-		std::cout << "game_count: " << i << "\n";
+		//std::cout << "game_count: " << i << "\n";
 		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
 		playGame(first_is_minimax);
 	}
