@@ -54,6 +54,20 @@ private:
 		return cnt;
 	}
 public:
+	bool hasMyStone(int y, int x) const {
+		return my_board_[y][x] == 1;
+	}
+
+	// y,x에 상대 돌이 있는지
+	bool hasEnemyStone(int y, int x) const {
+		return enemy_board_[y][x] == 1;
+	}
+
+	// 빈칸인지
+	bool isEmpty(int y, int x) const {
+		return my_board_[y][x] == 0 && enemy_board_[y][x] == 0;
+	}
+	bool isForbidden33(int action) const;
 
 	ConnectFourState();
 
