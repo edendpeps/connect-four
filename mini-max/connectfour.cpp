@@ -23,8 +23,9 @@ int minimax_win = 0;
 int game_draw = 0;
 int game_limit = 200;
 // 시간을 관리하는 클래스
-const int time_limit = 600;
-const int minimax_depth = 1000000;
+const int time_limit = 500;
+const int time_limit_minimax = 10000000;
+const int minimax_depth = 5;
 const int INF = 100000000;
 ConnectFourState::ConnectFourState() {}
 
@@ -185,23 +186,23 @@ void playGame(bool first_is_minimax)
 
 		if (minimax_turn)
 		{
-			//std::cout << "MiniMax ------------------------------------\n";
-			int action = negamaxAction(state, minimax_depth, time_limit);
-			//std::cout << "Turn : " << turn_count << "\n";
-			//std::cout << "action " << action << "\n";
+			std::cout << "MiniMax ------------------------------------\n";
+			int action = negamaxAction(state, minimax_depth, time_limit_minimax);
+			std::cout << "Turn : " << turn_count << "\n";
+			std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 		else
 		{
-			//std::cout << "MonteCarlo ---------------------------------\n";
+			std::cout << "MonteCarlo ---------------------------------\n";
 			int action = MontecarloAction(state, INF, time_limit);
-			//std::cout << "Turn : " << turn_count << "\n";
-			//std::cout << "action " << action << "\n";
+			std::cout << "Turn : " << turn_count << "\n";
+			std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 
 		last_move_by_minimax = minimax_turn;
-		//std::cout << state.toString() << "\n";
+		std::cout << state.toString() << "\n";
 		turn_count++;
 	}
 
@@ -230,7 +231,7 @@ void playGame(bool first_is_minimax)
 int main()
 {
 	for (int i = 0; i < game_limit; i++) {
-		//std::cout << "game_count: " << i << "\n";
+		std::cout << "game_count: " << i << "\n";
 		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
 		playGame(first_is_minimax);
 	}
