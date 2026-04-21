@@ -21,12 +21,13 @@
 int monte_win = 0;
 int minimax_win = 0;
 int game_draw = 0;
-int game_limit = 200;
+int game_limit = 100
+;
 // 시간을 관리하는 클래스
-const int time_limit = 500;
-const int time_limit_minimax = 10000000;
-const int minimax_depth = 5;
+const int time_limit = 100;
+const int time_limit_minimax = 100;
 const int INF = 100000000;
+const int minimax_depth = INF;
 ConnectFourState::ConnectFourState() {}
 
 bool ConnectFourState::isDone() const {
@@ -182,27 +183,31 @@ void playGame(bool first_is_minimax)
 
 	while (!state.isDone())
 	{
+		if (turn_count >= 4 && turn_count % 2 == 0) {
+			save_sample(state);
+			std::cout << "\nsaved\n";
+		}
 		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
 		if (minimax_turn)
 		{
-			std::cout << "MiniMax ------------------------------------\n";
-			int action = negamaxAction(state, minimax_depth, time_limit_minimax);
+			std::cout << "alphabeta ------------------------------------\n";
+			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
 			std::cout << "Turn : " << turn_count << "\n";
 			std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 		else
 		{
-			std::cout << "MonteCarlo ---------------------------------\n";
-			int action = MontecarloAction(state, INF, time_limit);
+			std::cout << "minimax ---------------------------------\n";
+			int action = negamaxAction(state, minimax_depth, time_limit_minimax);
 			std::cout << "Turn : " << turn_count << "\n";
 			std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 
 		last_move_by_minimax = minimax_turn;
-		std::cout << state.toString() << "\n";
+		//std::cout << state.toString() << "\n";
 		turn_count++;
 	}
 
@@ -214,14 +219,14 @@ void playGame(bool first_is_minimax)
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
 		// 직전에 둔 사람이 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "MiniMax" : "MonteCarlo") << "\n";
+		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "minimax") << "\n";
 		if (last_move_by_minimax) minimax_win++;
 		else monte_win++;
 	}
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
 		// 직전에 둔 사람이 짐 -> 상대가 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "MonteCarlo" : "MiniMax") << "\n";
+		std::cout << "winner: " << (last_move_by_minimax ? "minimax" : "alphabeta") << "\n";
 		if (last_move_by_minimax) monte_win++;
 		else minimax_win++;
 		 
@@ -230,13 +235,17 @@ void playGame(bool first_is_minimax)
 
 int main()
 {
+	//open_data_file("C:/Users/User/Desktop/connect4_data.csv");
+
 	for (int i = 0; i < game_limit; i++) {
 		std::cout << "game_count: " << i << "\n";
 		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
 		playGame(first_is_minimax);
 	}
-	std::cout << "MonteCarlo_win: " << monte_win<<"\n";
-	std::cout << "MiniMax_win: " << minimax_win<<"\n";
+	//close_data_file();
+
+	std::cout << "Minimax_win: " << monte_win<<"\n";
+	std::cout << "alphabeta_win: " << minimax_win<<"\n";
 	std::cout << "Draw: " << game_draw;;
 
 	return 0;

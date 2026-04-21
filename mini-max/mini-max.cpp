@@ -7,6 +7,7 @@
 #include <chrono>
 #include "ConnectFourState.hpp"
 #include "minimax.hpp"
+#include <fstream>
 
 using State = ConnectFourState; // 커넥트포 
 
@@ -78,7 +79,7 @@ static inline int eval(const State& s) {
 		switch (s.getWinningStatus()) {
 		case WinningStatus::LOSE:
 			// 직전에 둔 쪽이 승리 → 지금 둘 차례인 쪽은 패배
-			return -WIN_SCORE;  
+			return -WIN_SCORE;
 		case WinningStatus::WIN:
 			// 직전에 둔 쪽이 패배 → 지금 둘 차례인 쪽이 승리
 			return  WIN_SCORE;
@@ -136,6 +137,34 @@ static inline void order_actions(std::vector<int>& acts) {
 		[c](int a, int b) { return std::abs(a - c) < std::abs(b - c); });
 }
 
+// 네가맥스 (알파베타), 시간측정
+int negamax_alpha_beta(State state, int depth, int alpha, int beta, TimeKeeper& tk) {
+	if (depth == 0 || state.isDone()) return eval(state);
+
+	if (tk.isTimeOver()) return eval(state);
+
+	auto acts = state.legalActions();
+	if (acts.empty()) return eval(state);
+
+	order_actions(acts);
+
+	int best = -INF;
+
+	for (int a : acts) {
+		State child = state;
+		child.advance(a);
+
+		int v = -negamax_alpha_beta(child, depth - 1, -beta, -alpha, tk);
+
+		if (v > best) best = v;
+		if (v > alpha) alpha = v;
+
+		// 가지치기
+		if (alpha >= beta) break;
+	}
+
+	return best;
+}
 // 네가맥스 (알파베타 없음), 시간측정
 int negamax(State state, int depth, TimeKeeper& tk) {
 	if (depth == 0 || state.isDone()) return eval(state);
@@ -207,4 +236,113 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms)
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
 	std::cout << "depth: " << depth - 1 << "\n";;
 	return bestMove;
+}
+int alphaBetaAction(const State& state, int max_depth, int time_limit_ms)
+{
+	auto start = std::chrono::high_resolution_clock::now();
+	TimeKeeper tk(time_limit_ms);
+
+	int bestMove = -1;
+	int depth = 1;
+
+	while (depth <= max_depth && !tk.isTimeOver()) {
+		auto acts = state.legalActions();
+		if (acts.empty()) break;
+
+		order_actions(acts);
+
+		int localBestMove = acts.front();
+		int alpha = -INF;
+		int beta = INF;
+
+		for (int a : acts) {
+			if (tk.isTimeOver()) break;
+
+			State child = state;
+			child.advance(a);
+
+			int v = -negamax_alpha_beta(child, depth - 1, -beta, -alpha, tk);
+
+			if (v > alpha) {
+				alpha = v;
+				localBestMove = a;
+			}
+		}
+
+		if (!tk.isTimeOver()) {
+			bestMove = localBestMove;
+		}
+
+		depth++;
+	}
+
+	if (bestMove == -1) {
+		auto acts = state.legalActions();
+		if (!acts.empty()) bestMove = acts.front();
+	}
+
+	auto end = std::chrono::high_resolution_clock::now();
+	duration = std::chrono::duration<double, std::milli>(end - start).count();
+	std::cout << "alpha-beta depth: " << depth - 1 << "\n";
+	return bestMove;
+}
+static std::ofstream data_file;
+
+double normalize_score(double s) {
+	double x = s / 10000.0;
+	if (x > 1.0) x = 1.0;
+	if (x < -1.0) x = -1.0;
+	return x;
+}
+
+void open_data_file(const std::string& filename) {
+	data_file.open(filename);
+	for (int i = 0; i < 42; i++) {
+		data_file << "c" << i << ",";
+	}
+	data_file << "score\n";
+}
+
+void close_data_file() {
+	if (data_file.is_open()) data_file.close();
+}
+
+std::vector<int> encode_state(const State& s) {
+	std::vector<int> encoded;
+	encoded.reserve(42);
+
+	std::vector<std::string> rows;
+	bool is_first;
+	parseBoard(s, rows, is_first);
+
+	if (!is_first) {
+		for (auto& row : rows) {
+			for (auto& ch : row) {
+				if (ch == 'x') ch = 'o';
+				else if (ch == 'o') ch = 'x';
+			}
+		}
+	}
+
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			char c = at_cell(rows, y, x);
+			if (c == 'x') encoded.push_back(1);
+			else if (c == 'o') encoded.push_back(-1);
+			else encoded.push_back(0);
+		}
+	}
+	return encoded;
+}
+
+void save_sample(const State& s) {
+	if (!data_file.is_open()) return;
+
+	auto encoded = encode_state(s);
+	double y = normalize_score(eval(s));
+
+	for (int i = 0; i < 42; i++) {
+		data_file << encoded[i] << ",";
+	}
+	data_file << y << "\n";
 }
