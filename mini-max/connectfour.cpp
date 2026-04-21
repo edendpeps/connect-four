@@ -22,11 +22,11 @@
 int monte_win = 0;
 int minimax_win = 0;
 int game_draw = 0;
-int game_limit = 50
+int game_limit = 10
 ;
 // 시간을 관리하는 클래스
-const int time_limit = 1000;
-const int time_limit_minimax = 1000;
+const int time_limit = 150;
+const int time_limit_minimax = 150;
 const int INF = 100000000;
 const int minimax_depth = INF;
 const int roll_out = INF;

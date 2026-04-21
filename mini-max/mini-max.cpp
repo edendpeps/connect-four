@@ -136,7 +136,33 @@ static inline void order_actions(std::vector<int>& acts) {
 	std::sort(acts.begin(), acts.end(),
 		[c](int a, int b) { return std::abs(a - c) < std::abs(b - c); });
 }
+static inline void order_actions_by_eval(const State& state, std::vector<int>& acts) {
+	struct MoveScore {
+		int action;
+		int score;
+	};
 
+	std::vector<MoveScore> scored;
+	scored.reserve(acts.size());
+
+	for (int a : acts) {
+		State child = state;
+		child.advance(a);
+
+		// child는 상대 차례 상태이므로 부모 입장 점수로 되돌리기 위해 -eval(child)
+		int score = -eval(child);
+		scored.push_back({ a, score });
+	}
+
+	std::sort(scored.begin(), scored.end(),
+		[](const MoveScore& lhs, const MoveScore& rhs) {
+			return lhs.score > rhs.score;
+		});
+
+	for (int i = 0; i < (int)acts.size(); ++i) {
+		acts[i] = scored[i].action;
+	}
+}
 // 네가맥스 (알파베타), 시간측정
 int negamax_alpha_beta(State state, int depth, int alpha, int beta, TimeKeeper& tk) {
 	if (depth == 0 || state.isDone()) return eval(state);
@@ -146,7 +172,7 @@ int negamax_alpha_beta(State state, int depth, int alpha, int beta, TimeKeeper& 
 	auto acts = state.legalActions();
 	if (acts.empty()) return eval(state);
 
-	order_actions(acts);
+	order_actions_by_eval(state, acts);
 
 	int best = -INF;
 
@@ -165,6 +191,56 @@ int negamax_alpha_beta(State state, int depth, int alpha, int beta, TimeKeeper& 
 
 	return best;
 }
+int alphaBetaAction(const State& state, int max_depth, int time_limit_ms)
+{
+	auto start = std::chrono::high_resolution_clock::now();
+	TimeKeeper tk(time_limit_ms);
+
+	int bestMove = -1;
+	int depth = 1;
+
+	while (depth <= max_depth && !tk.isTimeOver()) {
+		auto acts = state.legalActions();
+		if (acts.empty()) break;
+
+		order_actions_by_eval(state, acts);
+
+		int localBestMove = acts.front();
+		int alpha = -INF;
+		int beta = INF;
+
+		for (int a : acts) {
+			if (tk.isTimeOver()) break;
+
+			State child = state;
+			child.advance(a);
+
+			int v = -negamax_alpha_beta(child, depth - 1, -beta, -alpha, tk);
+
+			if (v > alpha) {
+				alpha = v;
+				localBestMove = a;
+			}
+		}
+
+		if (!tk.isTimeOver()) {
+			bestMove = localBestMove;
+		}
+
+		depth++;
+	}
+
+	if (bestMove == -1) {
+		auto acts = state.legalActions();
+		if (!acts.empty()) bestMove = acts.front();
+	}
+
+	auto end = std::chrono::high_resolution_clock::now();
+	duration = std::chrono::duration<double, std::milli>(end - start).count();
+	std::cout << "alpha-beta depth: " << depth - 1 << "\n";
+	return bestMove;
+}
+
 // 네가맥스 (알파베타 없음), 시간측정
 int negamax(State state, int depth, TimeKeeper& tk) {
 	if (depth == 0 || state.isDone()) return eval(state);
@@ -235,55 +311,6 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms)
 	auto end = std::chrono::high_resolution_clock::now();
 	duration = std::chrono::duration<double, std::milli>(end - start).count();
 	std::cout << "depth: " << depth - 1 << "\n";;
-	return bestMove;
-}
-int alphaBetaAction(const State& state, int max_depth, int time_limit_ms)
-{
-	auto start = std::chrono::high_resolution_clock::now();
-	TimeKeeper tk(time_limit_ms);
-
-	int bestMove = -1;
-	int depth = 1;
-
-	while (depth <= max_depth && !tk.isTimeOver()) {
-		auto acts = state.legalActions();
-		if (acts.empty()) break;
-
-		order_actions(acts);
-
-		int localBestMove = acts.front();
-		int alpha = -INF;
-		int beta = INF;
-
-		for (int a : acts) {
-			if (tk.isTimeOver()) break;
-
-			State child = state;
-			child.advance(a);
-
-			int v = -negamax_alpha_beta(child, depth - 1, -beta, -alpha, tk);
-
-			if (v > alpha) {
-				alpha = v;
-				localBestMove = a;
-			}
-		}
-
-		if (!tk.isTimeOver()) {
-			bestMove = localBestMove;
-		}
-
-		depth++;
-	}
-
-	if (bestMove == -1) {
-		auto acts = state.legalActions();
-		if (!acts.empty()) bestMove = acts.front();
-	}
-
-	auto end = std::chrono::high_resolution_clock::now();
-	duration = std::chrono::duration<double, std::milli>(end - start).count();
-	std::cout << "alpha-beta depth: " << depth - 1 << "\n";
 	return bestMove;
 }
 static std::ofstream data_file;
