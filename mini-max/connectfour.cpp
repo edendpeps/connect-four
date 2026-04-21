@@ -14,6 +14,7 @@
 #include "ConnectFourState.hpp"
 #include "minimax.hpp"
 #include "Monte_Carlo.hpp"
+#include "MCTS.h"
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
@@ -21,13 +22,15 @@
 int monte_win = 0;
 int minimax_win = 0;
 int game_draw = 0;
-int game_limit = 100
+int game_limit = 50
 ;
 // 시간을 관리하는 클래스
-const int time_limit = 100;
-const int time_limit_minimax = 100;
+const int time_limit = 1000;
+const int time_limit_minimax = 1000;
 const int INF = 100000000;
 const int minimax_depth = INF;
+const int roll_out = INF;
+
 ConnectFourState::ConnectFourState() {}
 
 bool ConnectFourState::isDone() const {
@@ -199,8 +202,8 @@ void playGame(bool first_is_minimax)
 		}
 		else
 		{
-			std::cout << "minimax ---------------------------------\n";
-			int action = negamaxAction(state, minimax_depth, time_limit_minimax);
+			std::cout << "PUREMC ---------------------------------\n";
+			int action = MCTSAction(state, roll_out, time_limit);
 			std::cout << "Turn : " << turn_count << "\n";
 			std::cout << "action " << action << "\n";
 			state.advance(action);
@@ -219,14 +222,14 @@ void playGame(bool first_is_minimax)
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
 		// 직전에 둔 사람이 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "minimax") << "\n";
+		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "MCTS") << "\n";
 		if (last_move_by_minimax) minimax_win++;
 		else monte_win++;
 	}
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
 		// 직전에 둔 사람이 짐 -> 상대가 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "minimax" : "alphabeta") << "\n";
+		std::cout << "winner: " << (last_move_by_minimax ? "MCTS" : "alphabeta") << "\n";
 		if (last_move_by_minimax) monte_win++;
 		else minimax_win++;
 		 
@@ -244,7 +247,7 @@ int main()
 	}
 	//close_data_file();
 
-	std::cout << "Minimax_win: " << monte_win<<"\n";
+	std::cout << "MCTS_win: " << monte_win<<"\n";
 	std::cout << "alphabeta_win: " << minimax_win<<"\n";
 	std::cout << "Draw: " << game_draw;;
 

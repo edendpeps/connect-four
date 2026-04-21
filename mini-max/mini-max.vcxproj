@@ -132,12 +132,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="MCTS.cpp" />
     <ClCompile Include="mini-max.cpp" />
     <ClCompile Include="Monte_Carlo.cpp" />
     <ClCompile Include="소스.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ConnectFourState.hpp" />
+    <ClInclude Include="MCTS.h" />
     <ClInclude Include="minimax.hpp" />
     <ClInclude Include="Monte_Carlo.hpp" />
   </ItemGroup>
