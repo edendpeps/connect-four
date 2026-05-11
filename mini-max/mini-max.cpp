@@ -220,7 +220,7 @@ int alphaBetaAction(const State& state, int max_depth, int time_limit_ms)
 
     auto end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "alpha-beta depth: " << depth - 1 << "\n";
+    //std::cout << "alpha-beta depth: " << depth - 1 << "\n";
     return bestMove;
 }
 
@@ -279,7 +279,7 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms) {
 
     auto end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "depth: " << depth - 1 << "\n";
+    //std::cout << "depth: " << depth - 1 << "\n";
     return bestMove;
 }
 

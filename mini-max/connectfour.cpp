@@ -22,7 +22,7 @@ int monte_win = 0;
 int minimax_win = 0;
 int minimax2_win = 0;
 int game_draw = 0;
-int game_limit = 1000;
+int game_limit = 2000;
 // 시간을 관리하는 클래스 
 const int time_limit = 100 + rand() % 900;;
 const int time_limit_minimax = 100 + rand() % 900;;
@@ -189,16 +189,16 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	{
 		if (turn_count >= 4 && turn_count % 2 == 0) {
 			save_sample(state);
-			std::cout << "\nsaved\n";
+			//std::cout << "\nsaved\n";
 		}
 		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
 		if (minimax_turn)
 		{
-			std::cout << "alphabeta1 ------------------------------------\n";
+			//std::cout << "alphabeta1 ------------------------------------\n";
 			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-			std::cout << "Turn : " << turn_count << "\n";
-			std::cout << "action " << action << "\n";
+			//std::cout << "Turn : " << turn_count << "\n";
+			//std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 		else
@@ -207,17 +207,17 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 			if (opponent == OpponentType::AlphaBeta)
 			{
 
-				std::cout << "alphabeta2 ---------------------------------\n";
+				//std::cout << "alphabeta2 ---------------------------------\n";
 				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-				std::cout << "Turn : " << turn_count << "\n";
-				std::cout << "action " << action << "\n";
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
 			}
 			else
 			{
-				std::cout << "MCTS ---------------------------------\n";
+				//std::cout << "MCTS ---------------------------------\n";
 				action = MCTSAction(state, roll_out, time_limit_minimax);
-				std::cout << "Turn : " << turn_count << "\n";
-				std::cout << "action " << action << "\n";
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
 			}
 			state.advance(action);
 		}
@@ -229,13 +229,13 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 
 	if (state.getWinningStatus() == WinningStatus::DRAW)
 	{
-		std::cout << "DRAW\n";
+		//std::cout << "DRAW\n";
 		game_draw++;
 	}
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
 		// 직전에 둔 사람이 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
+		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
 		if (last_move_by_minimax) minimax_win++;
 		else 
 		{
@@ -252,7 +252,7 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
 		// 직전에 둔 사람이 짐 -> 상대가 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
+		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
 		if (last_move_by_minimax)
 		{
 			if (opponent == OpponentType::MCTS)
@@ -274,7 +274,7 @@ int main()
 	open_data_file("C:/Users/User/Desktop/connect4_data.csv");
 
 	for (int i = 0; i < game_limit; i++) {
-		std::cout << "\n\n---------------------- game_count: " << i << "\n\n";
+		std::cout << "---------------------- game_count: " << i << "\n";
 		OpponentType opponent;
 		if (i % 10 < 7) opponent = OpponentType::AlphaBeta; // 70%
 		else opponent = OpponentType::MCTS;                 // 30%
@@ -283,9 +283,9 @@ int main()
 	}
 	close_data_file();
 
-	std::cout << "MCTS_win: " << monte_win<<"\n";
-	std::cout << "alphabeta_win: " << minimax_win << "\n";
-	std::cout << "alphabeta2_win: " << minimax2_win<<"\n";
+	std::cout << "alphabeta_1P_win: " << minimax_win << "\n";
+	std::cout << "alphabeta_2P_win: " << minimax2_win<<"\n";
+	std::cout << "MCTS_2P_win: " << monte_win<<"\n";
 	std::cout << "Draw: " << game_draw;;
 
 	return 0;
