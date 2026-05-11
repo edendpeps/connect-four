@@ -284,7 +284,9 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms) {
 }
 
 // ── 학습 데이터 저장 ─────────────────────────────────────────
-static std::ofstream data_file;
+static std::ofstream train_data_file;
+static std::ofstream validation_data_file;
+static std::ofstream* current_data_file = nullptr;
 
 double normalize_score(double s) {
     double x = s / 10000.0;
@@ -293,18 +295,32 @@ double normalize_score(double s) {
     return x;
 }
 
-void open_data_file(const std::string& filename) {
-    data_file.open(filename);
-    for (int i = 0; i < 42; i++) data_file << "c" << i << ",";
-    data_file << "score\n";
+void write_data_header(std::ofstream& out_file) {
+    for (int i = 0; i < 42; i++) out_file << "c" << i << ",";
+    out_file << "score\n";
 }
 
-void close_data_file() {
-    if (data_file.is_open()) data_file.close();
+void open_data_files(const std::string& train_filename, const std::string& validation_filename) {
+    train_data_file.open(train_filename);
+    validation_data_file.open(validation_filename);
+
+    write_data_header(train_data_file);
+    write_data_header(validation_data_file);
+
+    current_data_file = &train_data_file;
+}
+
+void set_data_split(bool is_validation) {
+    current_data_file = is_validation ? &validation_data_file : &train_data_file;
+}
+
+void close_data_files() {
+    if (train_data_file.is_open()) train_data_file.close();
+    if (validation_data_file.is_open()) validation_data_file.close();
 }
 
 void save_sample(const State& s) {
-    if (!data_file.is_open()) return;
+    if (current_data_file == nullptr || !current_data_file->is_open()) return;
 
     const int(*my)[W] = s.getMyBoard();
     const int(*opp)[W] = s.getEnemyBoard();
@@ -312,8 +328,8 @@ void save_sample(const State& s) {
     for (int y = 0; y < H; y++) {
         for (int x = 0; x < W; x++) {
             int v = (my[y][x] == 1) ? 1 : (opp[y][x] == 1) ? -1 : 0;
-            data_file << v << ",";
+            (*current_data_file) << v << ",";
         }
     }
-    data_file << normalize_score(eval(s)) << "\n";
+    (*current_data_file) << normalize_score(eval(s)) << "\n";
 }
