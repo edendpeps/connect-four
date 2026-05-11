@@ -18,15 +18,14 @@
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
 
-
 int monte_win = 0;
 int minimax_win = 0;
+int minimax2_win = 0;
 int game_draw = 0;
-int game_limit = 10
-;
-// 시간을 관리하는 클래스
-const int time_limit = 150;
-const int time_limit_minimax = 150;
+int game_limit = 1000;
+// 시간을 관리하는 클래스 
+const int time_limit = 100 + rand() % 900;;
+const int time_limit_minimax = 100 + rand() % 900;;
 const int INF = 100000000;
 const int minimax_depth = INF;
 const int roll_out = INF;
@@ -36,7 +35,10 @@ ConnectFourState::ConnectFourState() {}
 bool ConnectFourState::isDone() const {
 	return winning_status_ != WinningStatus::NONE;
 }
-
+enum class OpponentType {
+	AlphaBeta,
+	MCTS
+};
 // helper: (y,x)에서 (dy,dx) 방향으로 내 돌 연속 길이
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	int cnt = 0;
@@ -176,10 +178,9 @@ int humanAction(const State& state)
 
 // 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
 	bool last_move_by_minimax = false; // 직전에 누가 뒀는지
-void playGame(bool first_is_minimax)
+void playGame(bool first_is_minimax, OpponentType opponent)
 {
 	int turn_count = 0;
-
 
 	auto state = State();
 	//std::cout << state.toString() << "\n";
@@ -194,7 +195,7 @@ void playGame(bool first_is_minimax)
 
 		if (minimax_turn)
 		{
-			std::cout << "alphabeta ------------------------------------\n";
+			std::cout << "alphabeta1 ------------------------------------\n";
 			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
 			std::cout << "Turn : " << turn_count << "\n";
 			std::cout << "action " << action << "\n";
@@ -202,10 +203,22 @@ void playGame(bool first_is_minimax)
 		}
 		else
 		{
-			std::cout << "PUREMC ---------------------------------\n";
-			int action = MCTSAction(state, roll_out, time_limit);
-			std::cout << "Turn : " << turn_count << "\n";
-			std::cout << "action " << action << "\n";
+			int action;
+			if (opponent == OpponentType::AlphaBeta)
+			{
+
+				std::cout << "alphabeta2 ---------------------------------\n";
+				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
+				std::cout << "Turn : " << turn_count << "\n";
+				std::cout << "action " << action << "\n";
+			}
+			else
+			{
+				std::cout << "MCTS ---------------------------------\n";
+				action = MCTSAction(state, roll_out, time_limit_minimax);
+				std::cout << "Turn : " << turn_count << "\n";
+				std::cout << "action " << action << "\n";
+			}
 			state.advance(action);
 		}
 
@@ -222,15 +235,35 @@ void playGame(bool first_is_minimax)
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
 		// 직전에 둔 사람이 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "MCTS") << "\n";
+		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
 		if (last_move_by_minimax) minimax_win++;
-		else monte_win++;
+		else 
+		{
+			if (opponent == OpponentType::MCTS)
+			{
+				monte_win++;
+			}
+			else
+			{
+				minimax2_win++;
+			}
+		}
 	}
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
 		// 직전에 둔 사람이 짐 -> 상대가 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "MCTS" : "alphabeta") << "\n";
-		if (last_move_by_minimax) monte_win++;
+		std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
+		if (last_move_by_minimax)
+		{
+			if (opponent == OpponentType::MCTS)
+			{
+				monte_win++;
+			}
+			else
+			{
+				minimax2_win++;
+			}
+		}
 		else minimax_win++;
 		 
 	}
@@ -238,17 +271,21 @@ void playGame(bool first_is_minimax)
 
 int main()
 {
-	//open_data_file("C:/Users/User/Desktop/connect4_data.csv");
+	open_data_file("C:/Users/User/Desktop/connect4_data.csv");
 
 	for (int i = 0; i < game_limit; i++) {
-		std::cout << "game_count: " << i << "\n";
+		std::cout << "\n\n---------------------- game_count: " << i << "\n\n";
+		OpponentType opponent;
+		if (i % 10 < 7) opponent = OpponentType::AlphaBeta; // 70%
+		else opponent = OpponentType::MCTS;                 // 30%
 		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
-		playGame(first_is_minimax);
+		playGame(first_is_minimax, opponent);
 	}
-	//close_data_file();
+	close_data_file();
 
 	std::cout << "MCTS_win: " << monte_win<<"\n";
-	std::cout << "alphabeta_win: " << minimax_win<<"\n";
+	std::cout << "alphabeta_win: " << minimax_win << "\n";
+	std::cout << "alphabeta2_win: " << minimax2_win<<"\n";
 	std::cout << "Draw: " << game_draw;;
 
 	return 0;

@@ -3,7 +3,6 @@
 #include <string>
 #include <chrono>
 
-// 보드 크기 (여기 한 군데만 정의하고, 다른 .cpp들에서는 중복 정의하지 않기)
 constexpr int H = 6;
 constexpr int W = 7;
 
@@ -21,14 +20,12 @@ private:
     int64_t time_threshold_;
 
 public:
-    // 시간 제한을 밀리초 단위로 지정해서 인스턴스를 생성한다.
     TimeKeeper(const int64_t& time_threshold)
         : start_time_(std::chrono::high_resolution_clock::now()),
         time_threshold_(time_threshold)
     {
     }
 
-    // 인스턴스를 생성한 시점부터 지정한 시간 제한을 초과하지 않았는지 판정한다.
     bool isTimeOver() const
     {
         auto diff = std::chrono::high_resolution_clock::now() - this->start_time_;
@@ -39,30 +36,29 @@ public:
 class ConnectFourState
 {
 private:
-    static constexpr int dx[2] = { 1, -1 };          // 가로 방향
-    static constexpr int dy_right_up[2] = { 1, -1 }; // "／" 대각
-    static constexpr int dy_left_up[2] = { -1, 1 };  // "\" 대각
+    static constexpr int dx[2] = { 1, -1 };
+    static constexpr int dy_right_up[2] = { 1, -1 };
+    static constexpr int dy_left_up[2] = { -1, 1 };
 
-    bool is_first_ = true;               // 선공 여부
-    int my_board_[H][W] = {};            // 내 말
-    int enemy_board_[H][W] = {};         // 상대 말
+    bool is_first_ = true;
+    int my_board_[H][W] = {};
+    int enemy_board_[H][W] = {};
     WinningStatus winning_status_ = WinningStatus::NONE;
 
 public:
     ConnectFourState();
 
-    // 게임 종료 여부
     bool isDone() const;
-
-    // 지정한 열(action)에 말 떨어뜨리기 + 턴 전환
     void advance(int action);
-
-    // 현재 플레이어가 둘 수 있는 열 목록
     std::vector<int> legalActions() const;
-
-    // 승패 정보
     WinningStatus getWinningStatus() const;
-
-    // 디버그 출력용 보드 문자열
     std::string toString() const;
+
+    // ── 직접 보드 접근자 (파싱 제거용) ──────────────────────────
+    // my_board_[y][x]  : 현재 차례 플레이어의 돌 (1 = 있음, 0 = 없음)
+    // enemy_board_[y][x]: 상대 플레이어의 돌
+    // y=0 이 바닥, y=H-1 이 천장 (advance()와 동일 좌표계)
+    const int(*getMyBoard()    const)[W] { return my_board_; }
+    const int(*getEnemyBoard() const)[W] { return enemy_board_; }
+    bool isFirst() const { return is_first_; }
 };
