@@ -164,6 +164,6 @@ int MCTSAction(const State& state, int playout_number, int time_limit_ms) {
         }
     }
 
-   //std::cout << "MCTS playouts: " << count << "\n";
+    std::cout << "MCTS playouts: " << count << "\n";
     return best_action;
 }
