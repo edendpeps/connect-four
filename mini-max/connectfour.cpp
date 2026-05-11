@@ -16,16 +16,14 @@
 #include "Monte_Carlo.hpp"
 #include "MCTS.h"
 #include <set>
-constexpr int TRAIN_SPLIT_PERCENT = 80;
-constexpr int MCTS_RATIO_PERCENT = 30;
-#include <limits> // ì¶”ê°€: ì…ë ¥ ìœ íš¨ì„± ì²˜ë¦¬ì— í•„ìš”
+#include <limits> // Ãß°¡: ÀÔ·Â À¯È¿¼º Ã³¸®¿¡ ÇÊ¿ä
 
 int monte_win = 0;
 int minimax_win = 0;
 int minimax2_win = 0;
 int game_draw = 0;
 int game_limit = 2000;
-// ì‹œê°„ì„ ê´€ë¦¬í•˜ëŠ” í´ë˜ìŠ¤ 
+// ½Ã°£À» °ü¸®ÇÏ´Â Å¬·¡½º 
 const int time_limit = 100 + rand() % 900;;
 const int time_limit_minimax = 100 + rand() % 900;;
 const int INF = 100000000;
@@ -41,7 +39,7 @@ enum class OpponentType {
 	AlphaBeta,
 	MCTS
 };
-// helper: (y,x)ì—ì„œ (dy,dx) ë°©í–¥ìœ¼ë¡œ ë‚´ ëŒ ì—°ì† ê¸¸ì´
+// helper: (y,x)¿¡¼­ (dy,dx) ¹æÇâÀ¸·Î ³» µ¹ ¿¬¼Ó ±æÀÌ
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	int cnt = 0;
 	while (y >= 0 && y < H && x >= 0 && x < W && board[y][x] == 1) {
@@ -51,7 +49,7 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 }
 void ConnectFourState::advance(const int action)
 {
-	// 1. ë§ ë†“ê¸°
+	// 1. ¸» ³õ±â
 	std::pair<int, int> coordinate(-1, -1);
 	for (int y = 0; y < H; ++y) {
 		if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
@@ -75,17 +73,17 @@ void ConnectFourState::advance(const int action)
 
 	bool board_full = false;
 	{
-		auto acts = legalActions();    // í˜„ì¬ íŒ ê¸°ì¤€ìœ¼ë¡œ ë” ë‘˜ ê³³ ìˆëŠ”ì§€
+		auto acts = legalActions();    // ÇöÀç ÆÇ ±âÁØÀ¸·Î ´õ µÑ °÷ ÀÖ´ÂÁö
 		board_full = acts.empty();
 	}
 
-	// 2. í„´ ë„˜ê¸°ê¸° (í•­ìƒ)
+	// 2. ÅÏ ³Ñ±â±â (Ç×»ó)
 	std::swap(my_board_, enemy_board_);
 	is_first_ = !is_first_;
 
-	// 3. ì´ì œ stateëŠ” "ë‹¤ìŒì— ë‘˜ ì‚¬ëŒ" ê´€ì ì´ë‹¤.
+	// 3. ÀÌÁ¦ state´Â "´ÙÀ½¿¡ µÑ »ç¶÷" °üÁ¡ÀÌ´Ù.
 	if (win_now) {
-		// ë°©ê¸ˆ ë‘” ì‚¬ëŒì´ ì´ê²¼ìœ¼ë‹ˆê¹Œ, ì§€ê¸ˆ state ì…ì¥ì—ì„  ë‚´ê°€ ì§„ ê²ƒ
+		// ¹æ±İ µĞ »ç¶÷ÀÌ ÀÌ°åÀ¸´Ï±î, Áö±İ state ÀÔÀå¿¡¼± ³»°¡ Áø °Í
 		winning_status_ = WinningStatus::LOSE;
 	}
 	else if (board_full) {
@@ -144,10 +142,10 @@ using State = ConnectFourState;
 using AIFunction = std::function<int(const State&)>;
 using StringAIPair = std::pair<std::string, AIFunction>;
 
-// ë¬´ì‘ìœ„ í–‰ë™
+// ¹«ÀÛÀ§ Çàµ¿
 
 
-// ì‚¬ëŒ ì…ë ¥(1P): ì—´ ë²ˆí˜¸ë¥¼ ì…ë ¥ë°›ì•„ ê²€ì¦
+// »ç¶÷ ÀÔ·Â(1P): ¿­ ¹øÈ£¸¦ ÀÔ·Â¹Ş¾Æ °ËÁõ
 int humanAction(const State& state)
 {
 	using std::cout;
@@ -160,26 +158,26 @@ int humanAction(const State& state)
 	int col;
 	while (true)
 	{
-void playGame(bool first_is_minimax, OpponentType opponent, bool to_validation)
-			save_sample(state, to_validation);
+		//cout << "´ç½ÅÀÇ Â÷·ÊÀÔ´Ï´Ù (¿­ ¹øÈ£ 0~" << (W - 1) << "): ";
+		if (!(cin >> col))
 		{
 			cin.clear();
 			cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			//cout << "ìˆ«ìë¥¼ ì…ë ¥í•˜ì„¸ìš”.\n";
+			//cout << "¼ıÀÚ¸¦ ÀÔ·ÂÇÏ¼¼¿ä.\n";
 			continue;
 		}
 		if (0 <= col && col < W && ok.count(col))
 		{
 			return col;
 		}
-		cout << "ê·¸ ì—´ì€ ë‘˜ ìˆ˜ ì—†ìŠµë‹ˆë‹¤. ê°€ëŠ¥í•œ ì—´: ";
+		cout << "±× ¿­Àº µÑ ¼ö ¾ø½À´Ï´Ù. °¡´ÉÇÑ ¿­: ";
 		for (auto c : legal) cout << c << " ";
 		cout << endl;
 	}
 }
 
-// ê²Œì„ì„ 1íšŒ í”Œë ˆì´: 1P(ì‚¬ëŒ), 2P(ëœë¤ AI)
-	bool last_move_by_minimax = false; // ì§ì „ì— ëˆ„ê°€ ë’€ëŠ”ì§€
+// °ÔÀÓÀ» 1È¸ ÇÃ·¹ÀÌ: 1P(»ç¶÷), 2P(·£´ı AI)
+	bool last_move_by_minimax = false; // Á÷Àü¿¡ ´©°¡ µ×´ÂÁö
 void playGame(bool first_is_minimax, OpponentType opponent)
 {
 	int turn_count = 0;
@@ -236,7 +234,7 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	}
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
-		// ì§ì „ì— ë‘” ì‚¬ëŒì´ ì´ê¹€
+		// Á÷Àü¿¡ µĞ »ç¶÷ÀÌ ÀÌ±è
 		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
 		if (last_move_by_minimax) minimax_win++;
 		else 
@@ -253,13 +251,10 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	}
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
-	open_data_files(
-		"C:/Users/User/Desktop/connect4_train_data.csv",
-		"C:/Users/User/Desktop/connect4_valid_data.csv");
-		if (i % 100 < (100 - MCTS_RATIO_PERCENT)) opponent = OpponentType::AlphaBeta; // 70%
-		else opponent = OpponentType::MCTS;                                               // 30%
-		bool to_validation = (i % 100 >= TRAIN_SPLIT_PERCENT); // 20% valid
-		playGame(first_is_minimax, opponent, to_validation);
+		// Á÷Àü¿¡ µĞ »ç¶÷ÀÌ Áü -> »ó´ë°¡ ÀÌ±è
+		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
+		if (last_move_by_minimax)
+		{
 			if (opponent == OpponentType::MCTS)
 			{
 				monte_win++;
@@ -283,7 +278,7 @@ int main()
 		OpponentType opponent;
 		if (i % 10 < 7) opponent = OpponentType::AlphaBeta; // 70%
 		else opponent = OpponentType::MCTS;                 // 30%
-		bool first_is_minimax = (i % 2 == 0); // ë²ˆê°ˆì•„ ì„ ê³µ
+		bool first_is_minimax = (i % 2 == 0); // ¹ø°¥¾Æ ¼±°ø
 		playGame(first_is_minimax, opponent);
 	}
 	close_data_file();
