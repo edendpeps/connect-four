@@ -26,7 +26,7 @@ int minimax2_win = 0;
 int game_draw = 0;
 int puremc_win = 0;
 
-int game_limit = 2000;
+int game_limit = 10;
 
 // 상태 생성용 AI 시간 제한
 // 빠르게 데이터 많이 만들고 싶으면 100~300 추천
@@ -34,7 +34,7 @@ const int game_ai_time_limit = 100;
 
 // 정책망 라벨 teacher용 MCTS 시간 제한
 // 라벨 품질 우선이면 500~1000, 시간 아끼려면 100~300
-const int policy_teacher_time_limit = 500;
+const int policy_teacher_time_limit = 250;
 
 const int INF = 100000000;
 const int minimax_depth = INF;
