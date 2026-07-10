@@ -11,23 +11,31 @@
 #include <iostream>
 #include <functional>
 #include <queue>
+#include <set>
+#include <limits>
+#include <fstream>
+
 #include "ConnectFourState.hpp"
 #include "minimax.hpp"
 #include "Monte_Carlo.hpp"
 #include "MCTS.h"
-#include <set>
-#include <limits> // 추가: 입력 유효성 처리에 필요
-#include <fstream>
 
 int monte_win = 0;
 int minimax_win = 0;
 int minimax2_win = 0;
 int game_draw = 0;
 int puremc_win = 0;
+
 int game_limit = 2000;
-// 시간을 관리하는 클래스 
-const int time_limit = 500;
-const int time_limit_minimax = 500;
+
+// 상태 생성용 AI 시간 제한
+// 빠르게 데이터 많이 만들고 싶으면 100~300 추천
+const int game_ai_time_limit = 100;
+
+// 정책망 라벨 teacher용 MCTS 시간 제한
+// 라벨 품질 우선이면 500~1000, 시간 아끼려면 100~300
+const int policy_teacher_time_limit = 500;
+
 const int INF = 100000000;
 const int minimax_depth = INF;
 const int roll_out = INF;
@@ -35,400 +43,396 @@ const int roll_out = INF;
 ConnectFourState::ConnectFourState() {}
 
 bool ConnectFourState::isDone() const {
-	return winning_status_ != WinningStatus::NONE;
+    return winning_status_ != WinningStatus::NONE;
 }
+
 enum class OpponentType {
-	AlphaBeta,
-	MCTS,
-	PMC
+    AlphaBeta,
+    MCTS,
+    PMC
+};
+
+enum class DataSplit {
+    Train,
+    Val,
+    Test
 };
 
 // helper: (y,x)에서 (dy,dx) 방향으로 내 돌 연속 길이
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
-	int cnt = 0;
-	while (y >= 0 && y < H && x >= 0 && x < W && board[y][x] == 1) {
-		++cnt; y += dy; x += dx;
-	}
-	return cnt;
+    int cnt = 0;
+    while (y >= 0 && y < H && x >= 0 && x < W && board[y][x] == 1) {
+        ++cnt;
+        y += dy;
+        x += dx;
+    }
+    return cnt;
 }
 
 void ConnectFourState::advance(const int action)
 {
-	// 1. 말 놓기
-	std::pair<int, int> coordinate(-1, -1);
-	for (int y = 0; y < H; ++y) {
-		if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
-			my_board_[y][action] = 1;
-			coordinate = { y, action };
-			break;
-		}
-	}
+    // 1. 돌 놓기
+    std::pair<int, int> coordinate(-1, -1);
+    for (int y = 0; y < H; ++y) {
+        if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
+            my_board_[y][action] = 1;
+            coordinate = { y, action };
+            break;
+        }
+    }
 
-	int y0 = coordinate.first;
-	int x0 = coordinate.second;
+    int y0 = coordinate.first;
+    int x0 = coordinate.second;
 
-	auto has4 = [&](int dy, int dx) {
-		int c = run(my_board_, y0, x0, dy, dx)
-			+ run(my_board_, y0, x0, -dy, -dx) - 1;
-		return c >= 4;
-		};
+    auto has4 = [&](int dy, int dx) {
+        int c = run(my_board_, y0, x0, dy, dx)
+            + run(my_board_, y0, x0, -dy, -dx) - 1;
+        return c >= 4;
+        };
 
-	bool win_now =
-		has4(0, 1) || has4(1, 0) || has4(1, 1) || has4(1, -1);
+    bool win_now =
+        has4(0, 1) || has4(1, 0) || has4(1, 1) || has4(1, -1);
 
-	bool board_full = false;
-	{
-		auto acts = legalActions();    // 현재 판 기준으로 더 둘 곳 있는지
-		board_full = acts.empty();
-	}
+    bool board_full = false;
+    {
+        auto acts = legalActions();
+        board_full = acts.empty();
+    }
 
-	// 2. 턴 넘기기 (항상)
-	std::swap(my_board_, enemy_board_);
-	is_first_ = !is_first_;
+    // 2. 턴 넘기기
+    std::swap(my_board_, enemy_board_);
+    is_first_ = !is_first_;
 
-	// 3. 이제 state는 "다음에 둘 사람" 관점이다.
-	if (win_now) {
-		// 방금 둔 사람이 이겼으니까, 지금 state 입장에선 내가 진 것
-		winning_status_ = WinningStatus::LOSE;
-	}
-	else if (board_full) {
-		winning_status_ = WinningStatus::DRAW;
-	}
-	else {
-		winning_status_ = WinningStatus::NONE;
-	}
+    // 3. 다음 플레이어 관점에서 상태 기록
+    if (win_now) {
+        // 방금 둔 이전 플레이어가 이겼으므로 현재 플레이어는 패배 상태
+        winning_status_ = WinningStatus::LOSE;
+    }
+    else if (board_full) {
+        winning_status_ = WinningStatus::DRAW;
+    }
+    else {
+        winning_status_ = WinningStatus::NONE;
+    }
 }
 
 std::vector<int> ConnectFourState::legalActions() const
 {
-	std::vector<int> actions;
-	for (int x = 0; x < W; x++)
-		for (int y = H - 1; y >= 0; y--)
-		{
-			if (my_board_[y][x] == 0 && enemy_board_[y][x] == 0)
-			{
-				actions.emplace_back(x);
-				break;
-			}
-		}
-	return actions;
+    std::vector<int> actions;
+    for (int x = 0; x < W; x++) {
+        for (int y = H - 1; y >= 0; y--) {
+            if (my_board_[y][x] == 0 && enemy_board_[y][x] == 0) {
+                actions.emplace_back(x);
+                break;
+            }
+        }
+    }
+    return actions;
 }
 
 WinningStatus ConnectFourState::getWinningStatus() const {
-	return this->winning_status_;
+    return this->winning_status_;
 }
 
 std::string ConnectFourState::toString() const
 {
-	std::stringstream ss("");
-	ss << "is_first:\t" << this->is_first_ << "\n";
-	for (int y = H - 1; y >= 0; y--)
-	{
-		for (int x = 0; x < W; x++)
-		{
-			char c = '.';
-			if (my_board_[y][x] == 1)
-			{
-				c = (is_first_ ? 'x' : 'o');
-			}
-			else if (enemy_board_[y][x] == 1)
-			{
-				c = (is_first_ ? 'o' : 'x');
-			}
-			ss << c;
-		}
-		ss << "\n";
-	}
-	return ss.str();
+    std::stringstream ss("");
+    ss << "is_first:\t" << this->is_first_ << "\n";
+    for (int y = H - 1; y >= 0; y--)
+    {
+        for (int x = 0; x < W; x++)
+        {
+            char c = '.';
+            if (my_board_[y][x] == 1)
+            {
+                c = (is_first_ ? 'x' : 'o');
+            }
+            else if (enemy_board_[y][x] == 1)
+            {
+                c = (is_first_ ? 'o' : 'x');
+            }
+            ss << c;
+        }
+        ss << "\n";
+    }
+    return ss.str();
 }
 
 using State = ConnectFourState;
 
-using AIFunction = std::function<int(const State&)>;
-using StringAIPair = std::pair<std::string, AIFunction>;
+// =========================
+// 정책망 데이터 저장부
+// CSV: c0,c1,...,c41,best_action
+// c0~c41: 현재 플레이어 기준 보드
+//  1 = 현재 차례 플레이어 돌
+// -1 = 상대 돌
+//  0 = 빈칸
+// best_action: MCTS teacher가 고른 열 번호, 0~6
+// =========================
 
-#include <fstream>
-#include <array>
+static std::ofstream policy_train_file;
+static std::ofstream policy_val_file;
+static std::ofstream policy_test_file;
+static std::ofstream* current_policy_file = nullptr;
 
-static std::ofstream value_train_file;
-static std::ofstream value_val_file;
-static std::ofstream value_test_file;
-static std::ofstream* current_value_file = nullptr;
-
-struct ValueSample {
-	std::array<int, 42> board;
-	bool to_move_is_first;
-};
-
-std::array<int, 42> encode_state_for_value(const State& s) {
-	std::array<int, 42> encoded{};
-
-	const int(*my)[W] = s.getMyBoard();
-	const int(*opp)[W] = s.getEnemyBoard();
-
-	int idx = 0;
-	for (int y = 0; y < H; y++) {
-		for (int x = 0; x < W; x++) {
-			if (my[y][x] == 1) encoded[idx++] = 1;
-			else if (opp[y][x] == 1) encoded[idx++] = -1;
-			else encoded[idx++] = 0;
-		}
-	}
-
-	return encoded;
+void write_policy_header(std::ofstream& fout) {
+    for (int i = 0; i < 42; i++) {
+        fout << "c" << i << ",";
+    }
+    fout << "best_action\n";
 }
 
-void write_value_header(std::ofstream& fout) {
-	for (int i = 0; i < 42; i++) {
-		fout << "c" << i << ",";
-	}
-	fout << "value\n";
-}
-
-void open_value_files(
-	const std::string& train_filename,
-	const std::string& val_filename,
-	const std::string& test_filename
+void open_policy_files(
+    const std::string& train_filename,
+    const std::string& val_filename,
+    const std::string& test_filename
 ) {
-	value_train_file.open(train_filename);
-	value_val_file.open(val_filename);
-	value_test_file.open(test_filename);
+    policy_train_file.open(train_filename);
+    policy_val_file.open(val_filename);
+    policy_test_file.open(test_filename);
 
-	write_value_header(value_train_file);
-	write_value_header(value_val_file);
-	write_value_header(value_test_file);
+    if (!policy_train_file.is_open()) {
+        std::cout << "policy train file open failed: " << train_filename << "\n";
+    }
+    if (!policy_val_file.is_open()) {
+        std::cout << "policy val file open failed: " << val_filename << "\n";
+    }
+    if (!policy_test_file.is_open()) {
+        std::cout << "policy test file open failed: " << test_filename << "\n";
+    }
 
-	current_value_file = &value_train_file;
-}
-enum class DataSplit {
-	Train,
-	Val,
-	Test
-};
+    write_policy_header(policy_train_file);
+    write_policy_header(policy_val_file);
+    write_policy_header(policy_test_file);
 
-void set_value_split(DataSplit split) {
-	if (split == DataSplit::Train) {
-		current_value_file = &value_train_file;
-	}
-	else if (split == DataSplit::Val) {
-		current_value_file = &value_val_file;
-	}
-	else {
-		current_value_file = &value_test_file;
-	}
+    current_policy_file = &policy_train_file;
 }
 
-void close_value_files() {
-	if (value_train_file.is_open()) value_train_file.close();
-	if (value_val_file.is_open()) value_val_file.close();
+void set_policy_split(DataSplit split) {
+    if (split == DataSplit::Train) {
+        current_policy_file = &policy_train_file;
+    }
+    else if (split == DataSplit::Val) {
+        current_policy_file = &policy_val_file;
+    }
+    else {
+        current_policy_file = &policy_test_file;
+    }
 }
 
-void save_value_row(const std::array<int, 42>& board, int value) {
-	if (current_value_file == nullptr || !current_value_file->is_open()) return;
-
-	for (int i = 0; i < 42; i++) {
-		(*current_value_file) << board[i] << ",";
-	}
-	(*current_value_file) << value << "\n";
+void close_policy_files() {
+    if (policy_train_file.is_open()) policy_train_file.close();
+    if (policy_val_file.is_open()) policy_val_file.close();
+    if (policy_test_file.is_open()) policy_test_file.close();
 }
-bool last_move_by_minimax = false; // 직전에 누가 뒀는지
+
+bool is_legal_action(const State& s, int action) {
+    auto acts = s.legalActions();
+    return std::find(acts.begin(), acts.end(), action) != acts.end();
+}
+
+int fallback_action(const State& s) {
+    auto acts = s.legalActions();
+    if (acts.empty()) return -1;
+
+    // 중앙열 우선 fallback
+    const int order[7] = { 3, 2, 4, 1, 5, 0, 6 };
+    for (int a : order) {
+        if (std::find(acts.begin(), acts.end(), a) != acts.end()) return a;
+    }
+    return acts.front();
+}
+
+void save_policy_row(const State& s, int best_action) {
+    if (current_policy_file == nullptr || !current_policy_file->is_open()) return;
+    if (!is_legal_action(s, best_action)) return;
+
+    const int(*my)[W] = s.getMyBoard();
+    const int(*opp)[W] = s.getEnemyBoard();
+
+    for (int y = 0; y < H; y++) {
+        for (int x = 0; x < W; x++) {
+            int v = 0;
+
+            if (my[y][x] == 1) v = 1;
+            else if (opp[y][x] == 1) v = -1;
+
+            (*current_policy_file) << v << ",";
+        }
+    }
+
+    (*current_policy_file) << best_action << "\n";
+}
+
+bool last_move_by_minimax = false;
+
 void playGame(bool first_is_minimax, OpponentType opponent)
 {
-	int turn_count = 0;
+    int turn_count = 0;
+    auto state = State();
 
-	auto state = State();
-	//std::cout << state.toString() << "\n";
+    while (!state.isDone())
+    {
+        bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
-	std::vector<ValueSample> pending_samples;
+        int teacher_action = -1;
 
-	while (!state.isDone())
-	{
-		if (turn_count >= 4) {
-			pending_samples.push_back({
-				encode_state_for_value(state),
-				state.isFirst()
-				});
-		}
-		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
+        // 정책망 라벨 저장
+        // 초반 빈 보드/너무 단순한 상태를 빼고 싶어서 turn_count >= 4부터 저장
+        if (turn_count >= 4) {
+            teacher_action = MCTSAction(state, roll_out, policy_teacher_time_limit);
+            save_policy_row(state, teacher_action);
+        }
 
-		if (minimax_turn)
-		{
-			//std::cout << "alphabeta1 ------------------------------------\n";
-			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-			//std::cout << "Turn : " << turn_count << "\n";
-			//std::cout << "action " << action << "\n";
-			state.advance(action);
-		}
-		else
-		{
-			int action;
-			if (opponent == OpponentType::AlphaBeta)
-			{
+        int action = -1;
 
-				//std::cout << "alphabeta2 ---------------------------------\n";
-				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-				//std::cout << "Turn : " << turn_count << "\n";
-				//std::cout << "action " << action << "\n";
-			}
-			else if (opponent == OpponentType::MCTS)
-			{
-				//std::cout << "MCTS ---------------------------------\n";
-				action = MCTSAction(state, roll_out, time_limit_minimax);
-				//std::cout << "Turn : " << turn_count << "\n";
-				//std::cout << "action " << action << "\n";
-			}
-			else
-			{
-				//std::cout << "PureMC ---------------------------------\n";
-				action = MontecarloAction(state, roll_out, time_limit_minimax);
-				//std::cout << "Turn : " << turn_count << "\n";
-				//std::cout << "action " << action << "\n";
-			}
-			state.advance(action);
-		}
+        if (minimax_turn)
+        {
+            action = alphaBetaAction(state, minimax_depth, game_ai_time_limit);
+        }
+        else
+        {
+            if (opponent == OpponentType::AlphaBeta)
+            {
+                action = alphaBetaAction(state, minimax_depth, game_ai_time_limit);
+            }
+            else if (opponent == OpponentType::MCTS)
+            {
+                // 이미 teacher MCTS를 돌렸으면 그 결과 재사용해서 시간 절약
+                if (is_legal_action(state, teacher_action)) {
+                    action = teacher_action;
+                }
+                else {
+                    action = MCTSAction(state, roll_out, game_ai_time_limit);
+                }
+            }
+            else
+            {
+                action = MontecarloAction(state, roll_out, game_ai_time_limit);
+            }
+        }
 
-		last_move_by_minimax = minimax_turn;
-		//std::cout << state.toString() << "\n";
-		turn_count++;
-	}
+        if (!is_legal_action(state, action)) {
+            action = fallback_action(state);
+        }
 
-	if (state.getWinningStatus() == WinningStatus::DRAW)
-	{
-		//std::cout << "DRAW\n";
-		game_draw++;
-	}
-	else if (state.getWinningStatus() == WinningStatus::LOSE)
-	{
-		// 직전에 둔 사람이 이김
-		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
-		if (last_move_by_minimax) minimax_win++;
-		else
-		{
-			if (opponent == OpponentType::MCTS)
-			{
-				monte_win++;
-			}
-			else if (opponent == OpponentType::PMC)
-			{
-				puremc_win++;
-			}
-			else
-			{
-				minimax2_win++;
-			}
-		}
-	}
-	else if (state.getWinningStatus() == WinningStatus::WIN)
-	{
-		// 직전에 둔 사람이 짐 -> 상대가 이김
-		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
-		if (last_move_by_minimax)
-		{
-			if (opponent == OpponentType::MCTS)
-			{
-				monte_win++;
-			}
-			else if (opponent == OpponentType::PMC)
-			{
-				puremc_win++;
-			}
-			else
-			{
-				minimax2_win++;
-			}
-		}
-		else
-		{
-			minimax_win++;
-		}
-	}
+        if (action == -1) break;
 
-	bool draw = (state.getWinningStatus() == WinningStatus::DRAW);
-	bool winner_is_first = false;
+        state.advance(action);
+        last_move_by_minimax = minimax_turn;
+        turn_count++;
+    }
 
-	if (!draw) {
-		if (state.getWinningStatus() == WinningStatus::LOSE) {
-			// advance() 후에는 다음 플레이어 관점으로 바뀌므로
-			// LOSE는 방금 둔 이전 플레이어가 이겼다는 뜻
-			winner_is_first = !state.isFirst();
-		}
-		else if (state.getWinningStatus() == WinningStatus::WIN) {
-			// 현재 구조에서는 거의 안 나오지만 안전용
-			winner_is_first = state.isFirst();
-		}
-	}
+    if (state.getWinningStatus() == WinningStatus::DRAW)
+    {
+        game_draw++;
+    }
+    else if (state.getWinningStatus() == WinningStatus::LOSE)
+    {
+        // 방금 둔 사람이 승리
+        if (last_move_by_minimax) {
+            minimax_win++;
+        }
+        else
+        {
+            if (opponent == OpponentType::MCTS) {
+                monte_win++;
+            }
+            else if (opponent == OpponentType::PMC) {
+                puremc_win++;
+            }
+            else {
+                minimax2_win++;
+            }
+        }
+    }
+    else if (state.getWinningStatus() == WinningStatus::WIN)
+    {
+        // 현재 구조에서는 거의 안 나오지만 안전용
+        if (last_move_by_minimax)
+        {
+            if (opponent == OpponentType::MCTS) {
+                monte_win++;
+            }
+            else if (opponent == OpponentType::PMC) {
+                puremc_win++;
+            }
+            else {
+                minimax2_win++;
+            }
+        }
+        else {
+            minimax_win++;
+        }
+    }
+}
 
-	for (const auto& sample : pending_samples) {
-		int value = 0;
-
-		if (!draw) {
-			value = (sample.to_move_is_first == winner_is_first) ? 1 : -1;
-		}
-
-		save_value_row(sample.board, value);
-	}
+std::string split_name(DataSplit split) {
+    if (split == DataSplit::Train) return "training";
+    if (split == DataSplit::Val) return "validation";
+    return "test";
 }
 
 int main()
 {
-	open_value_files(
-		"C:/Users/User/Desktop/value_train.csv",
-		"C:/Users/User/Desktop/value_val.csv",
-		"C:/Users/User/Desktop/value_test.csv"
-	);
+    open_policy_files(
+        "C:/Users/User/Desktop/policy_train.csv",
+        "C:/Users/User/Desktop/policy_val.csv",
+        "C:/Users/User/Desktop/policy_test.csv"
+    );
 
-	const int training_game_limit = static_cast<int>(game_limit * 0.7);
-	const int validation_game_limit = static_cast<int>(game_limit * 0.15);
-	const int test_game_limit = game_limit - training_game_limit - validation_game_limit;
-	const int training_half = training_game_limit / 2;
-	const int validation_half = validation_game_limit / 2;
+    const int training_game_limit = static_cast<int>(game_limit * 0.70);
+    const int validation_game_limit = static_cast<int>(game_limit * 0.15);
+    const int test_game_limit = game_limit - training_game_limit - validation_game_limit;
 
-	for (int i = 0; i < game_limit; i++) {
-		DataSplit split;
-		int split_index;
+    for (int i = 0; i < game_limit; i++) {
+        DataSplit split;
+        int split_index;
 
-		if (i < training_game_limit) {
-			split = DataSplit::Train;
-			split_index = i;
-		}
-		else if (i < training_game_limit + validation_game_limit) {
-			split = DataSplit::Val;
-			split_index = i - training_game_limit;
-		}
-		else {
-			split = DataSplit::Test;
-			split_index = i - training_game_limit - validation_game_limit;
-		}
+        if (i < training_game_limit) {
+            split = DataSplit::Train;
+            split_index = i;
+        }
+        else if (i < training_game_limit + validation_game_limit) {
+            split = DataSplit::Val;
+            split_index = i - training_game_limit;
+        }
+        else {
+            split = DataSplit::Test;
+            split_index = i - training_game_limit - validation_game_limit;
+        }
 
-		set_value_split(split);
+        set_policy_split(split);
 
-		std::cout << "\n---------------------- game_count: " << i << " [";
+        std::cout << "\n---------------------- game_count: " << i
+            << " [" << split_name(split) << "]\n";
 
-		if (split == DataSplit::Train) std::cout << "training";
-		else if (split == DataSplit::Val) std::cout << "validation";
-		else std::cout << "test";
+        // 상태 생성용 상대 비율
+        // 65% AlphaBeta, 25% MCTS, 10% PureMC
+        OpponentType opponent;
+        int r = split_index % 100;
 
-		std::cout << "]\n";
+        if (r < 65) opponent = OpponentType::AlphaBeta;
+        else if (r < 90) opponent = OpponentType::MCTS;
+        else opponent = OpponentType::PMC;
 
-		OpponentType opponent;
+        bool first_is_minimax = (i % 2 == 0);
+        playGame(first_is_minimax, opponent);
+    }
 
-		int r = split_index % 100;
+    close_policy_files();
 
-		if (r < 65) opponent = OpponentType::AlphaBeta;
-		else if (r < 90) opponent = OpponentType::MCTS;
-		else opponent = OpponentType::PMC;
+    std::cout << "\n========== Result ==========\n";
+    std::cout << "alphabeta_win: " << minimax_win << "\n";
+    std::cout << "MCTS_win: " << monte_win << "\n";
+    std::cout << "alphabeta2_win: " << minimax2_win << "\n";
+    std::cout << "pureMC_win: " << puremc_win << "\n";
+    std::cout << "Draw: " << game_draw << "\n";
 
-		bool first_is_minimax = (i % 2 == 0);
-		playGame(first_is_minimax, opponent);
-		if (i == 1999)
-		{
-			std::cout << "alphabeta_win: " << minimax_win << "\n";
-			std::cout << "MCTS_win: " << monte_win << "\n";
-			std::cout << "alphabeta2_win: " << minimax2_win << "\n";
-			std::cout << "pureMC_win: " << puremc_win << "\n";
+    std::cout << "\nCSV saved:\n";
+    std::cout << "C:/Users/User/Desktop/policy_train.csv\n";
+    std::cout << "C:/Users/User/Desktop/policy_val.csv\n";
+    std::cout << "C:/Users/User/Desktop/policy_test.csv\n";
 
-			std::cout << "Draw: " << game_draw;;
-
-		}
-	}
+    return 0;
 }

@@ -7,26 +7,22 @@
 #include <chrono>
 #include <random>
 #include <algorithm>
-#include<fstream>
 #include <iostream>
 
 using State = ConnectFourState;
 
-// rollout 결과를 "현재 state에서 둘 차례인 플레이어" 기준으로 반환
+// rollout 결과를 현재 state에서 둘 차례인 플레이어 기준으로 반환
 // WIN  ->  1.0
 // DRAW ->  0.0
 // LOSE -> -1.0
 static double mctsplayout(State state) {
-    // 게임 끝났으면, "현재 시점의 플레이어" 기준으로 평가
     if (state.isDone())
     {
         switch (state.getWinningStatus())
         {
         case WinningStatus::LOSE:
-            // 현재 플레이어 입장: LOSE = 내가 이긴 상태
             return -1.0;
         case WinningStatus::WIN:
-            // 현재 플레이어 입장: WIN  = 내가 진 상태
             return 1.0;
         case WinningStatus::DRAW:
             return 0.0;
@@ -35,18 +31,18 @@ static double mctsplayout(State state) {
         }
     }
 
-    // 아직 안 끝났으면, 랜덤으로 한 수 두고
     state.advance(randomAction(state));
-    // 턴이 바뀌었으니까, 값도 뒤집어 주기
-    return  -mctsplayout(state);
+
+    // advance 후 턴이 바뀌므로 부호 반전
+    return -mctsplayout(state);
 }
 
 class Node {
 public:
     State state_;
-    double w_;   // 누적 가치합
-    int n_;      // 방문 수
-    int action_; // 부모에서 여기로 오게 한 수
+    double w_;
+    int n_;
+    int action_;
     std::vector<std::unique_ptr<Node>> child_nodes_;
 
     Node(const State& state, int action = -1)
@@ -68,11 +64,9 @@ public:
         }
     }
 
-    // UCT 값 최대 자식 선택
     Node* nextChildNode() {
-        constexpr double C = 1.41421356237; // sqrt(2)
+        constexpr double C = 1.41421356237;
 
-        // 아직 방문 안 한 자식 우선
         for (auto& child : child_nodes_) {
             if (child->n_ == 0) return child.get();
         }
@@ -81,9 +75,8 @@ public:
         Node* best_node = nullptr;
 
         for (auto& child : child_nodes_) {
-            // child는 "상대 차례 state"라서 부호 반전해서 해석
             double exploitation = -(child->w_ / child->n_);
-            double exploration = C * std::sqrt(std::log((double)n_) / child->n_);
+            double exploration = C * std::sqrt(std::log((double)(n_ + 1)) / child->n_);
             double uct_value = exploitation + exploration;
 
             if (uct_value > best_value) {
@@ -95,7 +88,6 @@ public:
         return best_node;
     }
 
-    // 현재 node에서 본 가치 반환
     double evaluate() {
         if (state_.isDone()) {
             double value = 0.0;
@@ -104,7 +96,6 @@ public:
                 value = 1.0;
                 break;
             case WinningStatus::LOSE:
-
                 value = -1.0;
                 break;
             case WinningStatus::DRAW:
@@ -125,7 +116,6 @@ public:
             n_++;
             w_ += value;
 
-            // 한 번 이상 방문되면 확장
             if (n_ == 1) {
                 expand();
             }
@@ -134,7 +124,7 @@ public:
         }
         else {
             Node* child = nextChildNode();
-            double value = -child->evaluate(); // 턴 교대 반영
+            double value = -child->evaluate();
             n_++;
             w_ += value;
             return value;
@@ -167,6 +157,6 @@ int MCTSAction(const State& state, int playout_number, int time_limit_ms) {
             best_action = child->action_;
         }
     }
-    //std::cout << "MCTS playouts: " << count << "\n";
+
     return best_action;
 }
