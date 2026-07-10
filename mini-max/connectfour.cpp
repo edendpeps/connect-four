@@ -16,14 +16,19 @@
 #include "Monte_Carlo.hpp"
 #include "MCTS.h"
 #include <set>
-#include <limits> // ì¶”ê°€: ì…ë ¥ ìœ íš¨ì„± ì²˜ë¦¬ì— í•„ìš”
-#include <fstream>
+#include <limits> // Ãß°¡: ÀÔ·Â À¯È¿¼º Ã³¸®¿¡ ÇÊ¿ä
+#include <fstream>
+
 int monte_win = 0;
 int minimax_win = 0;
 int minimax2_win = 0;
 int game_draw = 0;
-int puremc_win = 0;int game_limit = 2000;// ì‹œê°„ì„ ê´€ë¦¬í•˜ëŠ” í´ë˜ìŠ¤ 
-const int time_limit = 500;const int time_limit_minimax = 500;const int INF = 100000000;
+int puremc_win = 0;
+int game_limit = 2000;
+// ½Ã°£À» °ü¸®ÇÏ´Â Å¬·¡½º 
+const int time_limit = 500;
+const int time_limit_minimax = 500;
+const int INF = 100000000;
 const int minimax_depth = INF;
 const int roll_out = INF;
 
@@ -34,8 +39,11 @@ bool ConnectFourState::isDone() const {
 }
 enum class OpponentType {
 	AlphaBeta,
-	MCTS,	PMC};
-// helper: (y,x)ì—ì„œ (dy,dx) ë°©í–¥ìœ¼ë¡œ ë‚´ ëŒ ì—°ì† ê¸¸ì´
+	MCTS,
+	PMC
+};
+
+// helper: (y,x)¿¡¼­ (dy,dx) ¹æÇâÀ¸·Î ³» µ¹ ¿¬¼Ó ±æÀÌ
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	int cnt = 0;
 	while (y >= 0 && y < H && x >= 0 && x < W && board[y][x] == 1) {
@@ -43,9 +51,10 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	}
 	return cnt;
 }
-void ConnectFourState::advance(const int action)
+
+void ConnectFourState::advance(const int action)
 {
-	// 1. ë§ ë†“ê¸°
+	// 1. ¸» ³õ±â
 	std::pair<int, int> coordinate(-1, -1);
 	for (int y = 0; y < H; ++y) {
 		if (my_board_[y][action] == 0 && enemy_board_[y][action] == 0) {
@@ -69,17 +78,17 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 
 	bool board_full = false;
 	{
-		auto acts = legalActions();    // í˜„ì¬ íŒ ê¸°ì¤€ìœ¼ë¡œ ë” ë‘˜ ê³³ ìˆëŠ”ì§€
+		auto acts = legalActions();    // ÇöÀç ÆÇ ±âÁØÀ¸·Î ´õ µÑ °÷ ÀÖ´ÂÁö
 		board_full = acts.empty();
 	}
 
-	// 2. í„´ ë„˜ê¸°ê¸° (í•­ìƒ)
+	// 2. ÅÏ ³Ñ±â±â (Ç×»ó)
 	std::swap(my_board_, enemy_board_);
 	is_first_ = !is_first_;
 
-	// 3. ì´ì œ stateëŠ” "ë‹¤ìŒì— ë‘˜ ì‚¬ëŒ" ê´€ì ì´ë‹¤.
+	// 3. ÀÌÁ¦ state´Â "´ÙÀ½¿¡ µÑ »ç¶÷" °üÁ¡ÀÌ´Ù.
 	if (win_now) {
-		// ë°©ê¸ˆ ë‘” ì‚¬ëŒì´ ì´ê²¼ìœ¼ë‹ˆê¹Œ, ì§€ê¸ˆ state ì…ì¥ì—ì„  ë‚´ê°€ ì§„ ê²ƒ
+		// ¹æ±İ µĞ »ç¶÷ÀÌ ÀÌ°åÀ¸´Ï±î, Áö±İ state ÀÔÀå¿¡¼± ³»°¡ Áø °Í
 		winning_status_ = WinningStatus::LOSE;
 	}
 	else if (board_full) {
@@ -138,28 +147,117 @@ using State = ConnectFourState;
 using AIFunction = std::function<int(const State&)>;
 using StringAIPair = std::pair<std::string, AIFunction>;
 
-#include <fstream>#include <array>
-static std::ofstream value_train_file;static std::ofstream value_val_file;static std::ofstream value_test_file;static std::ofstream* current_value_file = nullptr;
-struct ValueSample {	std::array<int, 42> board;	bool to_move_is_first;};
-std::array<int, 42> encode_state_for_value(const State& s) {	std::array<int, 42> encoded{};
-	const int(*my)[W] = s.getMyBoard();	const int(*opp)[W] = s.getEnemyBoard();	int idx = 0;	for (int y = 0; y < H; y++) {		for (int x = 0; x < W; x++) {			if (my[y][x] == 1) encoded[idx++] = 1;			else if (opp[y][x] == 1) encoded[idx++] = -1;			else encoded[idx++] = 0;		}
-	}	return encoded;}void write_value_header(std::ofstream& fout) {	for (int i = 0; i < 42; i++) {		fout << "c" << i << ",";	}	fout << "value\n";}
-void open_value_files(	const std::string& train_filename,	const std::string& val_filename,	const std::string& test_filename) {	value_train_file.open(train_filename);	value_val_file.open(val_filename);	value_test_file.open(test_filename);	write_value_header(value_train_file);	write_value_header(value_val_file);	write_value_header(value_test_file);	current_value_file = &value_train_file;}enum class DataSplit {	Train,	Val,	Test};void set_value_split(DataSplit split) {	if (split == DataSplit::Train) {		current_value_file = &value_train_file;	}	else if (split == DataSplit::Val) {		current_value_file = &value_val_file;	}	else {		current_value_file = &value_test_file;	}}void close_value_files() {	if (value_train_file.is_open()) value_train_file.close();	if (value_val_file.is_open()) value_val_file.close();}void save_value_row(const std::array<int, 42>& board, int value) {	if (current_value_file == nullptr || !current_value_file->is_open()) return;	for (int i = 0; i < 42; i++) {		(*current_value_file) << board[i] << ",";	}	(*current_value_file) << value << "\n";}bool last_move_by_minimax = false; // ì§ì „ì— ëˆ„ê°€ ë’€ëŠ”ì§€void playGame(bool first_is_minimax, OpponentType opponent)
+#include <fstream>
+#include <array>
+
+static std::ofstream value_train_file;
+static std::ofstream value_val_file;
+static std::ofstream value_test_file;
+static std::ofstream* current_value_file = nullptr;
+
+struct ValueSample {
+	std::array<int, 42> board;
+	bool to_move_is_first;
+};
+
+std::array<int, 42> encode_state_for_value(const State& s) {
+	std::array<int, 42> encoded{};
+
+	const int(*my)[W] = s.getMyBoard();
+	const int(*opp)[W] = s.getEnemyBoard();
+
+	int idx = 0;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			if (my[y][x] == 1) encoded[idx++] = 1;
+			else if (opp[y][x] == 1) encoded[idx++] = -1;
+			else encoded[idx++] = 0;
+		}
+	}
+
+	return encoded;
+}
+
+void write_value_header(std::ofstream& fout) {
+	for (int i = 0; i < 42; i++) {
+		fout << "c" << i << ",";
+	}
+	fout << "value\n";
+}
+
+void open_value_files(
+	const std::string& train_filename,
+	const std::string& val_filename,
+	const std::string& test_filename
+) {
+	value_train_file.open(train_filename);
+	value_val_file.open(val_filename);
+	value_test_file.open(test_filename);
+
+	write_value_header(value_train_file);
+	write_value_header(value_val_file);
+	write_value_header(value_test_file);
+
+	current_value_file = &value_train_file;
+}
+enum class DataSplit {
+	Train,
+	Val,
+	Test
+};
+
+void set_value_split(DataSplit split) {
+	if (split == DataSplit::Train) {
+		current_value_file = &value_train_file;
+	}
+	else if (split == DataSplit::Val) {
+		current_value_file = &value_val_file;
+	}
+	else {
+		current_value_file = &value_test_file;
+	}
+}
+
+void close_value_files() {
+	if (value_train_file.is_open()) value_train_file.close();
+	if (value_val_file.is_open()) value_val_file.close();
+}
+
+void save_value_row(const std::array<int, 42>& board, int value) {
+	if (current_value_file == nullptr || !current_value_file->is_open()) return;
+
+	for (int i = 0; i < 42; i++) {
+		(*current_value_file) << board[i] << ",";
+	}
+	(*current_value_file) << value << "\n";
+}
+bool last_move_by_minimax = false; // Á÷Àü¿¡ ´©°¡ µ×´ÂÁö
+void playGame(bool first_is_minimax, OpponentType opponent)
 {
 	int turn_count = 0;
 
 	auto state = State();
 	//std::cout << state.toString() << "\n";
 
-	std::vector<ValueSample> pending_samples;	while (!state.isDone())
+	std::vector<ValueSample> pending_samples;
+
+	while (!state.isDone())
 	{
-		if (turn_count >= 4) {			pending_samples.push_back({				encode_state_for_value(state),				state.isFirst()				});		}
+		if (turn_count >= 4) {
+			pending_samples.push_back({
+				encode_state_for_value(state),
+				state.isFirst()
+				});
+		}
 		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
 		if (minimax_turn)
 		{
-			//std::cout << "alphabeta1 ------------------------------------\n";			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-			//std::cout << "Turn : " << turn_count << "\n";			//std::cout << "action " << action << "\n";			state.advance(action);
+			//std::cout << "alphabeta1 ------------------------------------\n";
+			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
+			//std::cout << "Turn : " << turn_count << "\n";
+			//std::cout << "action " << action << "\n";
+			state.advance(action);
 		}
 		else
 		{
@@ -167,11 +265,25 @@ void open_value_files(	const std::string& train_filename,	const std::string& v
 			if (opponent == OpponentType::AlphaBeta)
 			{
 
-				//std::cout << "alphabeta2 ---------------------------------\n";				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-				//std::cout << "Turn : " << turn_count << "\n";				//std::cout << "action " << action << "\n";			}			else if (opponent == OpponentType::MCTS)			{				//std::cout << "MCTS ---------------------------------\n";				action = MCTSAction(state, roll_out, time_limit_minimax);				//std::cout << "Turn : " << turn_count << "\n";				//std::cout << "action " << action << "\n";			}
+				//std::cout << "alphabeta2 ---------------------------------\n";
+				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
+			}
+			else if (opponent == OpponentType::MCTS)
+			{
+				//std::cout << "MCTS ---------------------------------\n";
+				action = MCTSAction(state, roll_out, time_limit_minimax);
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
+			}
 			else
 			{
-				//std::cout << "PureMC ---------------------------------\n";				action = MontecarloAction(state, roll_out, time_limit_minimax);				//std::cout << "Turn : " << turn_count << "\n";				//std::cout << "action " << action << "\n";			}
+				//std::cout << "PureMC ---------------------------------\n";
+				action = MontecarloAction(state, roll_out, time_limit_minimax);
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
+			}
 			state.advance(action);
 		}
 
@@ -182,18 +294,25 @@ void open_value_files(	const std::string& train_filename,	const std::string& v
 
 	if (state.getWinningStatus() == WinningStatus::DRAW)
 	{
-		//std::cout << "DRAW\n";		game_draw++;
+		//std::cout << "DRAW\n";
+		game_draw++;
 	}
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
-		// ì§ì „ì— ë‘” ì‚¬ëŒì´ ì´ê¹€
-		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";		if (last_move_by_minimax) minimax_win++;
-		else		{
+		// Á÷Àü¿¡ µĞ »ç¶÷ÀÌ ÀÌ±è
+		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
+		if (last_move_by_minimax) minimax_win++;
+		else
+		{
 			if (opponent == OpponentType::MCTS)
 			{
 				monte_win++;
 			}
-			else if (opponent == OpponentType::PMC)			{				puremc_win++;			}			else
+			else if (opponent == OpponentType::PMC)
+			{
+				puremc_win++;
+			}
+			else
 			{
 				minimax2_win++;
 			}
@@ -201,25 +320,115 @@ void open_value_files(	const std::string& train_filename,	const std::string& v
 	}
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
-		// ì§ì „ì— ë‘” ì‚¬ëŒì´ ì§ -> ìƒëŒ€ê°€ ì´ê¹€		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";		if (last_move_by_minimax)		{
+		// Á÷Àü¿¡ µĞ »ç¶÷ÀÌ Áü -> »ó´ë°¡ ÀÌ±è
+		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
+		if (last_move_by_minimax)
+		{
 			if (opponent == OpponentType::MCTS)
 			{
 				monte_win++;
 			}
-			else if (opponent == OpponentType::PMC)			{				puremc_win++;			}			else
+			else if (opponent == OpponentType::PMC)
+			{
+				puremc_win++;
+			}
+			else
 			{
 				minimax2_win++;
 			}
-		}		else		{			minimax_win++;		}	}	bool draw = (state.getWinningStatus() == WinningStatus::DRAW);	bool winner_is_first = false;	if (!draw) {		if (state.getWinningStatus() == WinningStatus::LOSE) {			// advance() í›„ì—ëŠ” ë‹¤ìŒ í”Œë ˆì´ì–´ ê´€ì ìœ¼ë¡œ ë°”ë€Œë¯€ë¡œ			// LOSEëŠ” ë°©ê¸ˆ ë‘” ì´ì „ í”Œë ˆì´ì–´ê°€ ì´ê²¼ë‹¤ëŠ” ëœ»			winner_is_first = !state.isFirst();		}		else if (state.getWinningStatus() == WinningStatus::WIN) {			// í˜„ì¬ êµ¬ì¡°ì—ì„œëŠ” ê±°ì˜ ì•ˆ ë‚˜ì˜¤ì§€ë§Œ ì•ˆì „ìš©			winner_is_first = state.isFirst();		}	}	for (const auto& sample : pending_samples) {		int value = 0;		if (!draw) {			value = (sample.to_move_is_first == winner_is_first) ? 1 : -1;		}
-		save_value_row(sample.board, value);	}
+		}
+		else
+		{
+			minimax_win++;
+		}
+	}
+
+	bool draw = (state.getWinningStatus() == WinningStatus::DRAW);
+	bool winner_is_first = false;
+
+	if (!draw) {
+		if (state.getWinningStatus() == WinningStatus::LOSE) {
+			// advance() ÈÄ¿¡´Â ´ÙÀ½ ÇÃ·¹ÀÌ¾î °üÁ¡À¸·Î ¹Ù²î¹Ç·Î
+			// LOSE´Â ¹æ±İ µĞ ÀÌÀü ÇÃ·¹ÀÌ¾î°¡ ÀÌ°å´Ù´Â ¶æ
+			winner_is_first = !state.isFirst();
+		}
+		else if (state.getWinningStatus() == WinningStatus::WIN) {
+			// ÇöÀç ±¸Á¶¿¡¼­´Â °ÅÀÇ ¾È ³ª¿ÀÁö¸¸ ¾ÈÀü¿ë
+			winner_is_first = state.isFirst();
+		}
+	}
+
+	for (const auto& sample : pending_samples) {
+		int value = 0;
+
+		if (!draw) {
+			value = (sample.to_move_is_first == winner_is_first) ? 1 : -1;
+		}
+
+		save_value_row(sample.board, value);
+	}
 }
 
 int main()
 {
-	open_value_files(		"C:/Users/User/Desktop/value_train.csv",		"C:/Users/User/Desktop/value_val.csv",		"C:/Users/User/Desktop/value_test.csv"	);	const int training_game_limit = static_cast<int>(game_limit * 0.7);	const int validation_game_limit = static_cast<int>(game_limit * 0.15);	const int test_game_limit = game_limit - training_game_limit - validation_game_limit;	const int training_half = training_game_limit / 2;	const int validation_half = validation_game_limit / 2;
+	open_value_files(
+		"C:/Users/User/Desktop/value_train.csv",
+		"C:/Users/User/Desktop/value_val.csv",
+		"C:/Users/User/Desktop/value_test.csv"
+	);
+
+	const int training_game_limit = static_cast<int>(game_limit * 0.7);
+	const int validation_game_limit = static_cast<int>(game_limit * 0.15);
+	const int test_game_limit = game_limit - training_game_limit - validation_game_limit;
+	const int training_half = training_game_limit / 2;
+	const int validation_half = validation_game_limit / 2;
+
 	for (int i = 0; i < game_limit; i++) {
-		DataSplit split;		int split_index;		if (i < training_game_limit) {			split = DataSplit::Train;			split_index = i;		}		else if (i < training_game_limit + validation_game_limit) {			split = DataSplit::Val;			split_index = i - training_game_limit;		}		else {			split = DataSplit::Test;			split_index = i - training_game_limit - validation_game_limit;		}		set_value_split(split);		std::cout << "\n---------------------- game_count: " << i << " [";		if (split == DataSplit::Train) std::cout << "training";		else if (split == DataSplit::Val) std::cout << "validation";		else std::cout << "test";		std::cout << "]\n";		OpponentType opponent;
-		int r = split_index % 100;		if (r < 65) opponent = OpponentType::AlphaBeta;		else if (r < 90) opponent = OpponentType::MCTS;		else opponent = OpponentType::PMC;		bool first_is_minimax = (i % 2 == 0);		playGame(first_is_minimax, opponent);
-		if (i == 1999)		{			std::cout << "alphabeta_win: " << minimax_win << "\n";			std::cout << "MCTS_win: " << monte_win << "\n";			std::cout << "alphabeta2_win: " << minimax2_win << "\n";			std::cout << "pureMC_win: " << puremc_win << "\n";
-			std::cout << "Draw: " << game_draw;;
-		}	}}
+		DataSplit split;
+		int split_index;
+
+		if (i < training_game_limit) {
+			split = DataSplit::Train;
+			split_index = i;
+		}
+		else if (i < training_game_limit + validation_game_limit) {
+			split = DataSplit::Val;
+			split_index = i - training_game_limit;
+		}
+		else {
+			split = DataSplit::Test;
+			split_index = i - training_game_limit - validation_game_limit;
+		}
+
+		set_value_split(split);
+
+		std::cout << "\n---------------------- game_count: " << i << " [";
+
+		if (split == DataSplit::Train) std::cout << "training";
+		else if (split == DataSplit::Val) std::cout << "validation";
+		else std::cout << "test";
+
+		std::cout << "]\n";
+
+		OpponentType opponent;
+
+		int r = split_index % 100;
+
+		if (r < 65) opponent = OpponentType::AlphaBeta;
+		else if (r < 90) opponent = OpponentType::MCTS;
+		else opponent = OpponentType::PMC;
+
+		bool first_is_minimax = (i % 2 == 0);
+		playGame(first_is_minimax, opponent);
+		if (i == 1999)
+		{
+			std::cout << "alphabeta_win: " << minimax_win << "\n";
+			std::cout << "MCTS_win: " << monte_win << "\n";
+			std::cout << "alphabeta2_win: " << minimax2_win << "\n";
+			std::cout << "pureMC_win: " << puremc_win << "\n";
+
+			std::cout << "Draw: " << game_draw;;
+
+		}
+	}
+}
