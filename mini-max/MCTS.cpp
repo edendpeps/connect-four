@@ -1,10 +1,13 @@
 #include "Monte_Carlo.hpp"
+#include "MCTS.h"
+#include "ConnectFourState.hpp"
 #include <vector>
 #include <cmath>
 #include <memory>
 #include <chrono>
 #include <random>
 #include <algorithm>
+#include<fstream>
 #include <iostream>
 
 using State = ConnectFourState;
@@ -35,7 +38,7 @@ static double mctsplayout(State state) {
     // 아직 안 끝났으면, 랜덤으로 한 수 두고
     state.advance(randomAction(state));
     // 턴이 바뀌었으니까, 값도 뒤집어 주기
-    return 1.0 - mctsplayout(state);
+    return  -mctsplayout(state);
 }
 
 class Node {
@@ -101,6 +104,7 @@ public:
                 value = 1.0;
                 break;
             case WinningStatus::LOSE:
+
                 value = -1.0;
                 break;
             case WinningStatus::DRAW:
@@ -163,7 +167,6 @@ int MCTSAction(const State& state, int playout_number, int time_limit_ms) {
             best_action = child->action_;
         }
     }
-
-    std::cout << "MCTS playouts: " << count << "\n";
+    //std::cout << "MCTS playouts: " << count << "\n";
     return best_action;
 }

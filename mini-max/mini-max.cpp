@@ -220,7 +220,7 @@ int alphaBetaAction(const State& state, int max_depth, int time_limit_ms)
 
     auto end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "alpha-beta depth: " << depth - 1 << "\n";
+    //std::cout << "alpha-beta depth: " << depth - 1 << "\n";
     return bestMove;
 }
 
@@ -279,41 +279,47 @@ int negamaxAction(const State& state, int max_depth, int time_limit_ms) {
 
     auto end = std::chrono::high_resolution_clock::now();
     duration = std::chrono::duration<double, std::milli>(end - start).count();
-    std::cout << "depth: " << depth - 1 << "\n";
+    //std::cout << "depth: " << depth - 1 << "\n";
     return bestMove;
 }
 
 // ── 학습 데이터 저장 ─────────────────────────────────────────
-static std::ofstream data_file;
+static std::ofstream value_data_file;
+static std::ofstream policy_data_file;
+static std::ofstream* current_data_file = nullptr;
 
-double normalize_score(double s) {
-    double x = s / 10000.0;
-    if (x > 1.0) x = 1.0;
-    if (x < -1.0) x = -1.0;
-    return x;
+
+void write_data_header(std::ofstream& out_file) {
+    for (int i = 0; i < 42; i++) out_file << "c" << i << ",";
+    out_file << "score\n";
 }
 
-void open_data_file(const std::string& filename) {
-    data_file.open(filename);
-    for (int i = 0; i < 42; i++) data_file << "c" << i << ",";
-    data_file << "score\n";
-}
-
-void close_data_file() {
-    if (data_file.is_open()) data_file.close();
-}
-
-void save_sample(const State& s) {
-    if (!data_file.is_open()) return;
-
-    const int(*my)[W] = s.getMyBoard();
-    const int(*opp)[W] = s.getEnemyBoard();
-
-    for (int y = 0; y < H; y++) {
-        for (int x = 0; x < W; x++) {
-            int v = (my[y][x] == 1) ? 1 : (opp[y][x] == 1) ? -1 : 0;
-            data_file << v << ",";
-        }
-    }
-    data_file << normalize_score(eval(s)) << "\n";
-}
+//void open_data_files(const std::string& value_filename, const std::string& policy_filename) {
+//    value_data_file.open(value_filename);
+//    policy_data_file.open(policy_filename);
+//
+//    write_data_header(value_data_file);
+//    write_data_header(policy_data_file);
+//
+//    current_data_file = &value_data_file;
+//}
+//
+//void close_data_files() {
+//    if (value_data_file.is_open()) value_data_file.close();
+//    if (policy_data_file.is_open()) policy_data_file.close();
+//}
+//
+//void save_sample(const State& s) {
+//    if (current_data_file == nullptr || !current_data_file->is_open()) return;
+//
+//    const int(*my)[W] = s.getMyBoard();
+//    const int(*opp)[W] = s.getEnemyBoard();
+//
+//    for (int y = 0; y < H; y++) {
+//        for (int x = 0; x < W; x++) {
+//            int v = (my[y][x] == 1) ? 1 : (opp[y][x] == 1) ? -1 : 0;
+//            (*current_data_file) << v << ",";
+//        }
+//    }
+//    (*current_data_file) <<  << "\n";
+//}

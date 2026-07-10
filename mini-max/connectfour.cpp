@@ -17,15 +17,17 @@
 #include "MCTS.h"
 #include <set>
 #include <limits> // 추가: 입력 유효성 처리에 필요
+#include <fstream>
 
 int monte_win = 0;
 int minimax_win = 0;
 int minimax2_win = 0;
 int game_draw = 0;
-int game_limit = 1000;
+int puremc_win = 0;
+int game_limit = 2000;
 // 시간을 관리하는 클래스 
-const int time_limit = 100 + rand() % 900;;
-const int time_limit_minimax = 100 + rand() % 900;;
+const int time_limit = 500;
+const int time_limit_minimax = 500;
 const int INF = 100000000;
 const int minimax_depth = INF;
 const int roll_out = INF;
@@ -37,8 +39,10 @@ bool ConnectFourState::isDone() const {
 }
 enum class OpponentType {
 	AlphaBeta,
-	MCTS
+	MCTS,
+	PMC
 };
+
 // helper: (y,x)에서 (dy,dx) 방향으로 내 돌 연속 길이
 inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	int cnt = 0;
@@ -47,6 +51,7 @@ inline int run(const int board[H][W], int y, int x, int dy, int dx) {
 	}
 	return cnt;
 }
+
 void ConnectFourState::advance(const int action)
 {
 	// 1. 말 놓기
@@ -142,42 +147,91 @@ using State = ConnectFourState;
 using AIFunction = std::function<int(const State&)>;
 using StringAIPair = std::pair<std::string, AIFunction>;
 
-// 무작위 행동
+#include <fstream>
+#include <array>
 
+static std::ofstream value_train_file;
+static std::ofstream value_val_file;
+static std::ofstream value_test_file;
+static std::ofstream* current_value_file = nullptr;
 
-// 사람 입력(1P): 열 번호를 입력받아 검증
-int humanAction(const State& state)
-{
-	using std::cout;
-	using std::cin;
-	using std::endl;
+struct ValueSample {
+	std::array<int, 42> board;
+	bool to_move_is_first;
+};
 
-	auto legal = state.legalActions();
-	std::set<int> ok(legal.begin(), legal.end());
+std::array<int, 42> encode_state_for_value(const State& s) {
+	std::array<int, 42> encoded{};
 
-	int col;
-	while (true)
-	{
-		//cout << "당신의 차례입니다 (열 번호 0~" << (W - 1) << "): ";
-		if (!(cin >> col))
-		{
-			cin.clear();
-			cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			//cout << "숫자를 입력하세요.\n";
-			continue;
+	const int(*my)[W] = s.getMyBoard();
+	const int(*opp)[W] = s.getEnemyBoard();
+
+	int idx = 0;
+	for (int y = 0; y < H; y++) {
+		for (int x = 0; x < W; x++) {
+			if (my[y][x] == 1) encoded[idx++] = 1;
+			else if (opp[y][x] == 1) encoded[idx++] = -1;
+			else encoded[idx++] = 0;
 		}
-		if (0 <= col && col < W && ok.count(col))
-		{
-			return col;
-		}
-		cout << "그 열은 둘 수 없습니다. 가능한 열: ";
-		for (auto c : legal) cout << c << " ";
-		cout << endl;
+	}
+
+	return encoded;
+}
+
+void write_value_header(std::ofstream& fout) {
+	for (int i = 0; i < 42; i++) {
+		fout << "c" << i << ",";
+	}
+	fout << "value\n";
+}
+
+void open_value_files(
+	const std::string& train_filename,
+	const std::string& val_filename,
+	const std::string& test_filename
+) {
+	value_train_file.open(train_filename);
+	value_val_file.open(val_filename);
+	value_test_file.open(test_filename);
+
+	write_value_header(value_train_file);
+	write_value_header(value_val_file);
+	write_value_header(value_test_file);
+
+	current_value_file = &value_train_file;
+}
+enum class DataSplit {
+	Train,
+	Val,
+	Test
+};
+
+void set_value_split(DataSplit split) {
+	if (split == DataSplit::Train) {
+		current_value_file = &value_train_file;
+	}
+	else if (split == DataSplit::Val) {
+		current_value_file = &value_val_file;
+	}
+	else {
+		current_value_file = &value_test_file;
 	}
 }
 
-// 게임을 1회 플레이: 1P(사람), 2P(랜덤 AI)
-	bool last_move_by_minimax = false; // 직전에 누가 뒀는지
+void close_value_files() {
+	if (value_train_file.is_open()) value_train_file.close();
+	if (value_val_file.is_open()) value_val_file.close();
+}
+
+void save_value_row(const std::array<int, 42>& board, int value) {
+	if (current_value_file == nullptr || !current_value_file->is_open()) return;
+
+	for (int i = 0; i < 42; i++) {
+		(*current_value_file) << board[i] << ",";
+	}
+	(*current_value_file) << value << "\n";
+}
+bool last_move_by_minimax = false; // 직전에 누가 뒀는지
 void playGame(bool first_is_minimax, OpponentType opponent)
 {
 	int turn_count = 0;
@@ -185,20 +239,24 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	auto state = State();
 	//std::cout << state.toString() << "\n";
 
+	std::vector<ValueSample> pending_samples;
+
 	while (!state.isDone())
 	{
-		if (turn_count >= 4 && turn_count % 2 == 0) {
-			save_sample(state);
-			std::cout << "\nsaved\n";
+		if (turn_count >= 4) {
+			pending_samples.push_back({
+				encode_state_for_value(state),
+				state.isFirst()
+				});
 		}
 		bool minimax_turn = (turn_count % 2 == 0) == first_is_minimax;
 
 		if (minimax_turn)
 		{
-			std::cout << "alphabeta1 ------------------------------------\n";
+			//std::cout << "alphabeta1 ------------------------------------\n";
 			int action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-			std::cout << "Turn : " << turn_count << "\n";
-			std::cout << "action " << action << "\n";
+			//std::cout << "Turn : " << turn_count << "\n";
+			//std::cout << "action " << action << "\n";
 			state.advance(action);
 		}
 		else
@@ -207,17 +265,24 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 			if (opponent == OpponentType::AlphaBeta)
 			{
 
-				std::cout << "alphabeta2 ---------------------------------\n";
+				//std::cout << "alphabeta2 ---------------------------------\n";
 				action = alphaBetaAction(state, minimax_depth, time_limit_minimax);
-				std::cout << "Turn : " << turn_count << "\n";
-				std::cout << "action " << action << "\n";
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
+			}
+			else if (opponent == OpponentType::MCTS)
+			{
+				//std::cout << "MCTS ---------------------------------\n";
+				action = MCTSAction(state, roll_out, time_limit_minimax);
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
 			}
 			else
 			{
-				std::cout << "MCTS ---------------------------------\n";
-				action = MCTSAction(state, roll_out, time_limit_minimax);
-				std::cout << "Turn : " << turn_count << "\n";
-				std::cout << "action " << action << "\n";
+				//std::cout << "PureMC ---------------------------------\n";
+				action = MontecarloAction(state, roll_out, time_limit_minimax);
+				//std::cout << "Turn : " << turn_count << "\n";
+				//std::cout << "action " << action << "\n";
 			}
 			state.advance(action);
 		}
@@ -229,19 +294,23 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 
 	if (state.getWinningStatus() == WinningStatus::DRAW)
 	{
-		std::cout << "DRAW\n";
+		//std::cout << "DRAW\n";
 		game_draw++;
 	}
 	else if (state.getWinningStatus() == WinningStatus::LOSE)
 	{
 		// 직전에 둔 사람이 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
+		//std::cout << "winner: " << (last_move_by_minimax ? "alphabeta" : "ab2") << "\n";
 		if (last_move_by_minimax) minimax_win++;
-		else 
+		else
 		{
 			if (opponent == OpponentType::MCTS)
 			{
 				monte_win++;
+			}
+			else if (opponent == OpponentType::PMC)
+			{
+				puremc_win++;
 			}
 			else
 			{
@@ -252,41 +321,114 @@ void playGame(bool first_is_minimax, OpponentType opponent)
 	else if (state.getWinningStatus() == WinningStatus::WIN)
 	{
 		// 직전에 둔 사람이 짐 -> 상대가 이김
-		std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
+		//std::cout << "winner: " << (last_move_by_minimax ? "ab2" : "alphabeta") << "\n";
 		if (last_move_by_minimax)
 		{
 			if (opponent == OpponentType::MCTS)
 			{
 				monte_win++;
 			}
+			else if (opponent == OpponentType::PMC)
+			{
+				puremc_win++;
+			}
 			else
 			{
 				minimax2_win++;
 			}
 		}
-		else minimax_win++;
-		 
+		else
+		{
+			minimax_win++;
+		}
+	}
+
+	bool draw = (state.getWinningStatus() == WinningStatus::DRAW);
+	bool winner_is_first = false;
+
+	if (!draw) {
+		if (state.getWinningStatus() == WinningStatus::LOSE) {
+			// advance() 후에는 다음 플레이어 관점으로 바뀌므로
+			// LOSE는 방금 둔 이전 플레이어가 이겼다는 뜻
+			winner_is_first = !state.isFirst();
+		}
+		else if (state.getWinningStatus() == WinningStatus::WIN) {
+			// 현재 구조에서는 거의 안 나오지만 안전용
+			winner_is_first = state.isFirst();
+		}
+	}
+
+	for (const auto& sample : pending_samples) {
+		int value = 0;
+
+		if (!draw) {
+			value = (sample.to_move_is_first == winner_is_first) ? 1 : -1;
+		}
+
+		save_value_row(sample.board, value);
 	}
 }
 
 int main()
 {
-	open_data_file("C:/Users/User/Desktop/connect4_data.csv");
+	open_value_files(
+		"C:/Users/User/Desktop/value_train.csv",
+		"C:/Users/User/Desktop/value_val.csv",
+		"C:/Users/User/Desktop/value_test.csv"
+	);
+
+	const int training_game_limit = static_cast<int>(game_limit * 0.7);
+	const int validation_game_limit = static_cast<int>(game_limit * 0.15);
+	const int test_game_limit = game_limit - training_game_limit - validation_game_limit;
+	const int training_half = training_game_limit / 2;
+	const int validation_half = validation_game_limit / 2;
 
 	for (int i = 0; i < game_limit; i++) {
-		std::cout << "\n\n---------------------- game_count: " << i << "\n\n";
+		DataSplit split;
+		int split_index;
+
+		if (i < training_game_limit) {
+			split = DataSplit::Train;
+			split_index = i;
+		}
+		else if (i < training_game_limit + validation_game_limit) {
+			split = DataSplit::Val;
+			split_index = i - training_game_limit;
+		}
+		else {
+			split = DataSplit::Test;
+			split_index = i - training_game_limit - validation_game_limit;
+		}
+
+		set_value_split(split);
+
+		std::cout << "\n---------------------- game_count: " << i << " [";
+
+		if (split == DataSplit::Train) std::cout << "training";
+		else if (split == DataSplit::Val) std::cout << "validation";
+		else std::cout << "test";
+
+		std::cout << "]\n";
+
 		OpponentType opponent;
-		if (i % 10 < 7) opponent = OpponentType::AlphaBeta; // 70%
-		else opponent = OpponentType::MCTS;                 // 30%
-		bool first_is_minimax = (i % 2 == 0); // 번갈아 선공
+
+		int r = split_index % 100;
+
+		if (r < 65) opponent = OpponentType::AlphaBeta;
+		else if (r < 90) opponent = OpponentType::MCTS;
+		else opponent = OpponentType::PMC;
+
+		bool first_is_minimax = (i % 2 == 0);
 		playGame(first_is_minimax, opponent);
+		if (i == 1999)
+		{
+			std::cout << "alphabeta_win: " << minimax_win << "\n";
+			std::cout << "MCTS_win: " << monte_win << "\n";
+			std::cout << "alphabeta2_win: " << minimax2_win << "\n";
+			std::cout << "pureMC_win: " << puremc_win << "\n";
+
+			std::cout << "Draw: " << game_draw;;
+
+		}
 	}
-	close_data_file();
-
-	std::cout << "MCTS_win: " << monte_win<<"\n";
-	std::cout << "alphabeta_win: " << minimax_win << "\n";
-	std::cout << "alphabeta2_win: " << minimax2_win<<"\n";
-	std::cout << "Draw: " << game_draw;;
-
-	return 0;
 }
