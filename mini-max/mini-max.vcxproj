@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="CNNPolicy.cpp" />
     <ClCompile Include="connectfour.cpp" />
     <ClCompile Include="game.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
@@ -134,14 +135,19 @@
     </ClCompile>
     <ClCompile Include="MCTS.cpp" />
     <ClCompile Include="mini-max.cpp" />
+    <ClCompile Include="MLPPolicy.cpp" />
     <ClCompile Include="Monte_Carlo.cpp" />
+    <ClCompile Include="PolicyMCTS.cpp" />
     <ClCompile Include="소스.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CNNPolicy.hpp" />
     <ClInclude Include="ConnectFourState.hpp" />
     <ClInclude Include="MCTS.h" />
     <ClInclude Include="minimax.hpp" />
+    <ClInclude Include="MLPPolicy.hpp" />
     <ClInclude Include="Monte_Carlo.hpp" />
+    <ClInclude Include="PolicyMCTS.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
