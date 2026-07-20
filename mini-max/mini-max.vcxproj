@@ -129,6 +129,7 @@
   <ItemGroup>
     <ClCompile Include="CNNPolicy.cpp" />
     <ClCompile Include="connectfour.cpp" />
+    <ClCompile Include="FairMCTS.cpp" />
     <ClCompile Include="game.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
@@ -143,6 +144,7 @@
   <ItemGroup>
     <ClInclude Include="CNNPolicy.hpp" />
     <ClInclude Include="ConnectFourState.hpp" />
+    <ClInclude Include="FairMCTS.hpp" />
     <ClInclude Include="MCTS.h" />
     <ClInclude Include="minimax.hpp" />
     <ClInclude Include="MLPPolicy.hpp" />

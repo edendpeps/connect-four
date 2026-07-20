@@ -1,5 +1,8 @@
-#include <algorithm>
+ï»¿#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdint>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <random>
@@ -17,12 +20,27 @@
 #include "MLPPolicy.hpp"
 #include "CNNPolicy.hpp"
 #include "PolicyMCTS.hpp"
+#include "FairMCTS.hpp"
 
-// ==================== ¿©±â¸¸ ¼öÁ¤ ====================
-const int GAME_LIMIT = 200;          // ´ëÁø ÇÏ³ª´ç ÃÑ ÆÇ¼ö
-const int TIME_LIMIT_MS = 100;       // ÇÑ ¼ö´ç Á¦ÇÑ½Ã°£
+// ==================== ì—¬ê¸°ë§Œ ìˆ˜ì • ====================
+const int GAME_LIMIT = 200;          // ëŒ€ì§„ í•˜ë‚˜ë‹¹ ì´ íŒìˆ˜
+const int TIME_LIMIT_MS = 100;       // í•œ ìˆ˜ë‹¹ ì œí•œì‹œê°„
 const int INF = 100000000;
 const int RANDOM_SEED = 42;
+
+// ==================== ê³µì • ë¹„êµ ì‹¤í—˜ ì„¤ì • ====================
+const bool RUN_FIXED_SIMULATIONS = true;
+const bool RUN_FIXED_TIME = true;
+const int FIXED_SIMULATIONS = 10000;
+const int FIXED_TIME_MS = 100;
+const int OPENINGS_PER_SEED = 50;
+const int MIN_OPENING_PLIES = 2;
+const int MAX_OPENING_PLIES = 6;
+const std::array<std::uint32_t, 3> EXPERIMENT_SEEDS = {
+    42u, 123u, 777u
+};
+const char* const GAMES_CSV = "fair_mcts_games.csv";
+const char* const SUMMARY_CSV = "fair_mcts_summary.csv";
 // ====================================================
 
 using State = ConnectFourState;
@@ -95,8 +113,8 @@ int chooseAction(AIType ai, const State& state)
     return -1;
 }
 
-// A¿Í B°¡ ºó º¸µå¿¡¼­ ÇÑ ÆÇ ´ë±¹ÇÑ´Ù.
-// a_first°¡ trueÀÌ¸é A ¼±°ø, falseÀÌ¸é B ¼±°øÀÌ´Ù.
+// Aì™€ Bê°€ ë¹ˆ ë³´ë“œì—ì„œ í•œ íŒ ëŒ€êµ­í•œë‹¤.
+// a_firstê°€ trueì´ë©´ A ì„ ê³µ, falseì´ë©´ B ì„ ê³µì´ë‹¤.
 void playGame(
     AIType a,
     AIType b,
@@ -134,7 +152,7 @@ void playGame(
         if (std::find(legal.begin(), legal.end(), action) == legal.end()) {
             throw std::runtime_error(
                 std::string(aiName(current_ai))
-                + "°¡ ºÒ°¡´ÉÇÑ ¼ö¸¦ ¼±ÅÃÇß½À´Ï´Ù: "
+                + "ê°€ ë¶ˆê°€ëŠ¥í•œ ìˆ˜ë¥¼ ì„ íƒí–ˆìŠµë‹ˆë‹¤: "
                 + std::to_string(action)
             );
         }
@@ -149,13 +167,13 @@ void playGame(
         stats.draw++;
     }
     else if (state.getWinningStatus() == WinningStatus::LOSE) {
-        // advance() ÈÄ¿¡´Â ´ÙÀ½ ÇÃ·¹ÀÌ¾î °üÁ¡ÀÌ¹Ç·Î,
-        // LOSEÀÌ¸é ¹æ±İ µĞ ÇÃ·¹ÀÌ¾î°¡ ½Â¸®ÇÑ °ÍÀÌ´Ù.
+        // advance() í›„ì—ëŠ” ë‹¤ìŒ í”Œë ˆì´ì–´ ê´€ì ì´ë¯€ë¡œ,
+        // LOSEì´ë©´ ë°©ê¸ˆ ë‘” í”Œë ˆì´ì–´ê°€ ìŠ¹ë¦¬í•œ ê²ƒì´ë‹¤.
         if (last_move_by_a) stats.a_win++;
         else stats.b_win++;
     }
     else {
-        // ÇöÀç ConnectFourState ±¸Á¶¿¡¼­´Â °ÅÀÇ ³ª¿ÀÁö ¾Ê´Â ¾ÈÀü Ã³¸®
+        // í˜„ì¬ ConnectFourState êµ¬ì¡°ì—ì„œëŠ” ê±°ì˜ ë‚˜ì˜¤ì§€ ì•ŠëŠ” ì•ˆì „ ì²˜ë¦¬
         if (last_move_by_a) stats.b_win++;
         else stats.a_win++;
     }
@@ -170,7 +188,7 @@ void runMatch(AIType a, AIType b)
         << " ==========\n";
 
     for (int game = 0; game < GAME_LIMIT; ++game) {
-        // ¸Å ÆÇ¸¶´Ù ¼±°ø ±³È¯
+        // ë§¤ íŒë§ˆë‹¤ ì„ ê³µ êµí™˜
         const bool a_first = (game % 2 == 0);
         playGame(a, b, a_first, stats);
 
@@ -221,7 +239,410 @@ void runMatch(AIType a, AIType b)
 }
 
 
-// ==================== ±âÁ¸ ConnectFourState ±¸Çö ====================
+// ==================== ê³µì • MCTS ë¹„êµ ì‹¤í—˜ ====================
+
+enum class ExperimentAI {
+    PlainUCT,
+    MLPRoot,
+    CNNRoot
+};
+
+struct SearchTotals {
+    long long moves = 0;
+    long long simulations = 0;
+    long long policy_evaluations = 0;
+    long long policy_inference_ns = 0;
+    long long search_time_ns = 0;
+
+    void add(const FairMCTSResult& result, long long elapsed_ns)
+    {
+        ++moves;
+        simulations += result.simulations;
+        policy_evaluations += result.policy_evaluations;
+        policy_inference_ns += result.policy_inference_ns;
+        search_time_ns += elapsed_ns;
+    }
+};
+
+struct ExperimentGameResult {
+    // 0: A ìŠ¹, 1: B ìŠ¹, 2: ë¬´ìŠ¹ë¶€
+    int winner = 2;
+    int moves = 0;
+    SearchTotals a;
+    SearchTotals b;
+};
+
+struct ExperimentSummary {
+    int games = 0;
+    int a_wins = 0;
+    int b_wins = 0;
+    int draws = 0;
+    SearchTotals a;
+    SearchTotals b;
+};
+
+struct OpeningCase {
+    State state;
+    int plies = 0;
+};
+
+struct Matchup {
+    ExperimentAI a;
+    ExperimentAI b;
+};
+
+const char* experimentAIName(ExperimentAI ai)
+{
+    switch (ai) {
+    case ExperimentAI::PlainUCT: return "UCT_MCTS";
+    case ExperimentAI::MLPRoot:  return "MLP_ROOT_MCTS";
+    case ExperimentAI::CNNRoot:  return "CNN_ROOT_MCTS";
+    default:                      return "UNKNOWN";
+    }
+}
+
+std::uint32_t deriveSeed(std::uint32_t base, std::uint32_t salt)
+{
+    std::uint32_t value = base ^ (salt + 0x9e3779b9u
+        + (base << 6) + (base >> 2));
+    value ^= value >> 16;
+    value *= 0x7feb352du;
+    value ^= value >> 15;
+    value *= 0x846ca68bu;
+    value ^= value >> 16;
+    return value;
+}
+
+OpeningCase makeRandomOpening(std::uint32_t seed)
+{
+    OpeningCase opening;
+    std::mt19937 rng(seed);
+    std::uniform_int_distribution<int> plies_dist(
+        MIN_OPENING_PLIES,
+        MAX_OPENING_PLIES
+    );
+    opening.plies = plies_dist(rng);
+
+    for (int ply = 0; ply < opening.plies; ++ply) {
+        const auto legal = opening.state.legalActions();
+        if (legal.empty() || opening.state.isDone()) {
+            throw std::runtime_error("ëœë¤ ì˜¤í”„ë‹ ìƒì„± ì¤‘ ê²Œì„ì´ ì¢…ë£Œë˜ì—ˆìŠµë‹ˆë‹¤.");
+        }
+
+        std::uniform_int_distribution<int> action_dist(
+            0,
+            static_cast<int>(legal.size()) - 1
+        );
+        opening.state.advance(
+            legal[static_cast<std::size_t>(action_dist(rng))]
+        );
+    }
+
+    return opening;
+}
+
+FairMCTSResult runExperimentSearch(
+    ExperimentAI ai,
+    const State& state,
+    const FairMCTSConfig& config,
+    std::mt19937& rng
+)
+{
+    switch (ai) {
+    case ExperimentAI::PlainUCT:
+        return PlainMCTSAction(state, config, rng);
+    case ExperimentAI::MLPRoot:
+        return MLPRootMCTSAction(state, mlp_policy, config, rng);
+    case ExperimentAI::CNNRoot:
+        return CNNRootMCTSAction(state, cnn_policy, config, rng);
+    }
+
+    return FairMCTSResult{};
+}
+
+ExperimentGameResult playExperimentGame(
+    const State& opening,
+    ExperimentAI a,
+    ExperimentAI b,
+    bool a_controls_current_player,
+    const FairMCTSConfig& config,
+    std::uint32_t game_seed
+)
+{
+    State state = opening;
+    ExperimentGameResult game;
+    bool a_turn = a_controls_current_player;
+    bool last_move_by_a = false;
+
+    while (!state.isDone()) {
+        const ExperimentAI current_ai = a_turn ? a : b;
+
+        // ë§¤ ìˆ˜ë§ˆë‹¤ RNGë¥¼ ìƒˆë¡œ ë§Œë“¤ì–´ ì´ì „ íƒìƒ‰ì˜ ë‚œìˆ˜ ì†Œë¹„ì™€ ë¶„ë¦¬í•œë‹¤.
+        const std::uint32_t move_seed = deriveSeed(
+            game_seed,
+            static_cast<std::uint32_t>(game.moves + 1)
+        );
+        std::mt19937 move_rng(move_seed);
+
+        const auto begin = std::chrono::steady_clock::now();
+        const FairMCTSResult search = runExperimentSearch(
+            current_ai,
+            state,
+            config,
+            move_rng
+        );
+        const auto end = std::chrono::steady_clock::now();
+        const long long elapsed_ns =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                end - begin
+            ).count();
+
+        const auto legal = state.legalActions();
+        if (std::find(legal.begin(), legal.end(), search.action)
+            == legal.end()) {
+            throw std::runtime_error(
+                std::string(experimentAIName(current_ai))
+                + "ê°€ ë¶ˆê°€ëŠ¥í•œ ìˆ˜ë¥¼ ì„ íƒí–ˆìŠµë‹ˆë‹¤: "
+                + std::to_string(search.action)
+            );
+        }
+
+        if (a_turn) game.a.add(search, elapsed_ns);
+        else game.b.add(search, elapsed_ns);
+
+        state.advance(search.action);
+        last_move_by_a = a_turn;
+        a_turn = !a_turn;
+        ++game.moves;
+    }
+
+    if (state.getWinningStatus() == WinningStatus::DRAW) {
+        game.winner = 2;
+    }
+    else if (state.getWinningStatus() == WinningStatus::LOSE) {
+        // advance()ê°€ ê´€ì ì„ êµí™˜í•˜ë¯€ë¡œ LOSEëŠ” ë°©ê¸ˆ ë‘” ìª½ì˜ ìŠ¹ë¦¬ë‹¤.
+        game.winner = last_move_by_a ? 0 : 1;
+    }
+    else {
+        game.winner = last_move_by_a ? 1 : 0;
+    }
+
+    return game;
+}
+
+void addGameToSummary(
+    ExperimentSummary& summary,
+    const ExperimentGameResult& game
+)
+{
+    ++summary.games;
+    if (game.winner == 0) ++summary.a_wins;
+    else if (game.winner == 1) ++summary.b_wins;
+    else ++summary.draws;
+
+    summary.a.moves += game.a.moves;
+    summary.a.simulations += game.a.simulations;
+    summary.a.policy_evaluations += game.a.policy_evaluations;
+    summary.a.policy_inference_ns += game.a.policy_inference_ns;
+    summary.a.search_time_ns += game.a.search_time_ns;
+
+    summary.b.moves += game.b.moves;
+    summary.b.simulations += game.b.simulations;
+    summary.b.policy_evaluations += game.b.policy_evaluations;
+    summary.b.policy_inference_ns += game.b.policy_inference_ns;
+    summary.b.search_time_ns += game.b.search_time_ns;
+}
+
+double average(long long total, long long count)
+{
+    return count == 0
+        ? 0.0
+        : static_cast<double>(total) / static_cast<double>(count);
+}
+
+void writeGameRow(
+    std::ofstream& csv,
+    const char* budget_name,
+    const Matchup& matchup,
+    std::uint32_t base_seed,
+    int opening_id,
+    int leg,
+    const OpeningCase& opening,
+    const ExperimentGameResult& game
+)
+{
+    const bool a_first = leg == 0;
+    const char* winner = game.winner == 0
+        ? experimentAIName(matchup.a)
+        : (game.winner == 1 ? experimentAIName(matchup.b) : "DRAW");
+
+    csv << budget_name << ','
+        << experimentAIName(matchup.a) << "_vs_"
+        << experimentAIName(matchup.b) << ','
+        << base_seed << ',' << opening_id << ',' << leg << ','
+        << opening.plies << ','
+        << experimentAIName(a_first ? matchup.a : matchup.b) << ','
+        << experimentAIName(a_first ? matchup.b : matchup.a) << ','
+        << winner << ',' << game.moves << ','
+        << game.a.moves << ',' << game.b.moves << ','
+        << game.a.simulations << ',' << game.b.simulations << ','
+        << game.a.policy_evaluations << ','
+        << game.b.policy_evaluations << ','
+        << game.a.policy_inference_ns << ','
+        << game.b.policy_inference_ns << ','
+        << game.a.search_time_ns << ','
+        << game.b.search_time_ns << '\n';
+}
+
+void writeSummaryRow(
+    std::ofstream& csv,
+    const char* budget_name,
+    const Matchup& matchup,
+    std::uint32_t base_seed,
+    const ExperimentSummary& summary
+)
+{
+    csv << budget_name << ','
+        << experimentAIName(matchup.a) << "_vs_"
+        << experimentAIName(matchup.b) << ','
+        << base_seed << ',' << summary.games << ','
+        << summary.a_wins << ',' << summary.b_wins << ','
+        << summary.draws << ','
+        << average(summary.a.simulations, summary.a.moves) << ','
+        << average(summary.b.simulations, summary.b.moves) << ','
+        << average(summary.a.policy_inference_ns,
+            summary.a.policy_evaluations) << ','
+        << average(summary.b.policy_inference_ns,
+            summary.b.policy_evaluations) << ','
+        << average(summary.a.search_time_ns, summary.a.moves) << ','
+        << average(summary.b.search_time_ns, summary.b.moves) << '\n';
+}
+
+void runExperimentBudget(
+    const char* budget_name,
+    FairSearchBudgetMode budget_mode,
+    std::ofstream& games_csv,
+    std::ofstream& summary_csv
+)
+{
+    FairMCTSConfig config;
+    config.budget_mode = budget_mode;
+    config.simulations = FIXED_SIMULATIONS;
+    config.time_limit_ms = FIXED_TIME_MS;
+
+    const std::array<Matchup, 3> matchups = {{
+        { ExperimentAI::PlainUCT, ExperimentAI::MLPRoot },
+        { ExperimentAI::PlainUCT, ExperimentAI::CNNRoot },
+        { ExperimentAI::MLPRoot, ExperimentAI::CNNRoot }
+    }};
+
+    for (const Matchup& matchup : matchups) {
+        for (std::uint32_t base_seed : EXPERIMENT_SEEDS) {
+            ExperimentSummary summary;
+
+            for (int opening_id = 0;
+                opening_id < OPENINGS_PER_SEED;
+                ++opening_id) {
+                const std::uint32_t opening_seed = deriveSeed(
+                    base_seed,
+                    static_cast<std::uint32_t>(opening_id + 1)
+                );
+                const OpeningCase opening = makeRandomOpening(opening_seed);
+
+                // ê°™ì€ opening.stateë¥¼ ë³µì‚¬í•˜ê³  í˜„ì¬ í”Œë ˆì´ì–´ ë‹´ë‹¹ë§Œ êµí™˜í•œë‹¤.
+                for (int leg = 0; leg < 2; ++leg) {
+                    const std::uint32_t game_seed = deriveSeed(
+                        opening_seed,
+                        static_cast<std::uint32_t>(1000 + leg)
+                    );
+                    const ExperimentGameResult game = playExperimentGame(
+                        opening.state,
+                        matchup.a,
+                        matchup.b,
+                        leg == 0,
+                        config,
+                        game_seed
+                    );
+
+                    writeGameRow(
+                        games_csv,
+                        budget_name,
+                        matchup,
+                        base_seed,
+                        opening_id,
+                        leg,
+                        opening,
+                        game
+                    );
+                    addGameToSummary(summary, game);
+                }
+            }
+
+            writeSummaryRow(
+                summary_csv,
+                budget_name,
+                matchup,
+                base_seed,
+                summary
+            );
+
+            std::cout << budget_name << ": "
+                << experimentAIName(matchup.a) << " vs "
+                << experimentAIName(matchup.b) << ", seed="
+                << base_seed << " ì™„ë£Œ\n";
+        }
+    }
+}
+
+int runFairExperiments()
+{
+    std::cout << "ê³µì • MCTS ë¹„êµ ì‹¤í—˜ì„ ì‹œì‘í•©ë‹ˆë‹¤.\n" << std::flush;
+
+    std::ofstream games_csv(GAMES_CSV);
+    std::ofstream summary_csv(SUMMARY_CSV);
+    if (!games_csv.is_open() || !summary_csv.is_open()) {
+        std::cerr << "ì‹¤í—˜ CSV íŒŒì¼ì„ ë§Œë“¤ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.\n";
+        return 1;
+    }
+
+    games_csv
+        << "budget,matchup,base_seed,opening_id,leg,opening_plies,"
+        << "first_ai,second_ai,winner,moves,a_moves,b_moves,"
+        << "a_simulations,b_simulations,a_policy_evaluations,"
+        << "b_policy_evaluations,a_policy_inference_ns,"
+        << "b_policy_inference_ns,a_search_time_ns,b_search_time_ns\n";
+
+    summary_csv
+        << "budget,matchup,base_seed,games,a_wins,b_wins,draws,"
+        << "a_avg_simulations,b_avg_simulations,"
+        << "a_avg_policy_inference_ns,b_avg_policy_inference_ns,"
+        << "a_avg_search_time_ns,b_avg_search_time_ns\n";
+
+    if (RUN_FIXED_SIMULATIONS) {
+        runExperimentBudget(
+            "fixed_simulations",
+            FairSearchBudgetMode::FixedSimulations,
+            games_csv,
+            summary_csv
+        );
+    }
+
+    if (RUN_FIXED_TIME) {
+        runExperimentBudget(
+            "fixed_time_100ms",
+            FairSearchBudgetMode::FixedTime,
+            games_csv,
+            summary_csv
+        );
+    }
+
+    std::cout << "ìƒì„¸ ê²°ê³¼: " << GAMES_CSV << '\n';
+    std::cout << "ìš”ì•½ ê²°ê³¼: " << SUMMARY_CSV << '\n';
+    return 0;
+}
+
+
+// ==================== ê¸°ì¡´ ConnectFourState êµ¬í˜„ ====================
 
 ConnectFourState::ConnectFourState() {}
 
@@ -256,7 +677,7 @@ inline int countRun(
 void ConnectFourState::advance(const int action)
 {
     if (action < 0 || action >= W) {
-        throw std::out_of_range("actionÀÌ 0~6 ¹üÀ§¸¦ ¹ş¾î³µ½À´Ï´Ù.");
+        throw std::out_of_range("actionì´ 0~6 ë²”ìœ„ë¥¼ ë²—ì–´ë‚¬ìŠµë‹ˆë‹¤.");
     }
 
     std::pair<int, int> coordinate(-1, -1);
@@ -273,7 +694,7 @@ void ConnectFourState::advance(const int action)
     }
 
     if (coordinate.first < 0) {
-        throw std::runtime_error("°¡µæ Âù ¿­¿¡ µ¹À» ³õÀ¸·Á°í Çß½À´Ï´Ù.");
+        throw std::runtime_error("ê°€ë“ ì°¬ ì—´ì— ëŒì„ ë†“ìœ¼ë ¤ê³  í–ˆìŠµë‹ˆë‹¤.");
     }
 
     const int y0 = coordinate.first;
@@ -306,7 +727,7 @@ void ConnectFourState::advance(const int action)
         }
     }
 
-    // ´ÙÀ½ ÇÃ·¹ÀÌ¾î °üÁ¡À¸·Î ÀüÈ¯
+    // ë‹¤ìŒ í”Œë ˆì´ì–´ ê´€ì ìœ¼ë¡œ ì „í™˜
     std::swap(my_board_, enemy_board_);
     is_first_ = !is_first_;
 
@@ -368,7 +789,7 @@ std::string ConnectFourState::toString() const
 }
 
 
-// ==================== ½ÇÇàÇÒ ´ëÁø ====================
+// ==================== ì‹¤í–‰í•  ëŒ€ì§„ ====================
 
 int main()
 {
@@ -384,11 +805,15 @@ int main()
         return 1;
     }
 
+    const int experiment_result = runFairExperiments();
+
+#if 0
+    // ê¸°ì¡´ ë‹¨ìˆœ ëŒ€ì§„ ì‹¤í–‰ë¶€. í•„ìš”í•˜ë©´ ì‹¤í—˜ í˜¸ì¶œê³¼ ë°”ê¿”ì„œ ì‚¬ìš©í•  ìˆ˜ ìˆë‹¤.
     policy_mcts_config.budget_mode = SearchBudgetMode::FixedTime;
     policy_mcts_config.time_limit_ms = TIME_LIMIT_MS;
     policy_mcts_config.c_puct = 1.4;
 
-    // ÇÊ¿ä ¾ø´Â ´ëÁøÀº ¾Õ¿¡ //¸¦ ºÙÀÌ¸é µÈ´Ù.
+    // í•„ìš” ì—†ëŠ” ëŒ€ì§„ì€ ì•ì— //ë¥¼ ë¶™ì´ë©´ ëœë‹¤.
     //runMatch(AIType::MLPMCTS, AIType::AlphaBeta);
     runMatch(AIType::MLPMCTS, AIType::MCTS);
     //runMatch(AIType::MLPMCTS, AIType::PureMC);
@@ -397,8 +822,10 @@ int main()
     runMatch(AIType::CNNMCTS, AIType::MCTS);
     //runMatch(AIType::CNNMCTS, AIType::PureMC);
 
-    // µÑ³¢¸® ´Ù½Ã ºñ±³ÇÒ ¶§ ÁÖ¼® ÇØÁ¦
+    // ë‘˜ë¼ë¦¬ ë‹¤ì‹œ ë¹„êµí•  ë•Œ ì£¼ì„ í•´ì œ
     runMatch(AIType::MLPMCTS, AIType::CNNMCTS);
 
-    return 0;
+#endif
+
+    return experiment_result;
 }
